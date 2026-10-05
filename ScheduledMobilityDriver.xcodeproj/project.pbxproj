@@ -1,0 +1,414 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 63;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		000000000000000000000101 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000201 /* AppDelegate.swift */; };
+		000000000000000000000102 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000202 /* SceneDelegate.swift */; };
+		000000000000000000000103 /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000203 /* AppCoordinator.swift */; };
+		000000000000000000000104 /* CompositionRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000204 /* CompositionRoot.swift */; };
+		000000000000000000000105 /* DriverDomain in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000501 /* DriverDomain */; };
+		000000000000000000000106 /* DriverData in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000502 /* DriverData */; };
+		000000000000000000000107 /* PlatformServices in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000503 /* PlatformServices */; };
+		000000000000000000000108 /* FeatureContracts in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000504 /* FeatureContracts */; };
+		000000000000000000000109 /* DriverPresentation in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000505 /* DriverPresentation */; };
+		00000000000000000000010A /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000506 /* DesignSystem */; };
+		00000000000000000000010B /* DriverUIKit in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000507 /* DriverUIKit */; };
+		00000000000000000000010C /* DriverSwiftUI in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000508 /* DriverSwiftUI */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		000000000000000000000201 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		000000000000000000000202 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		000000000000000000000203 /* AppCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCoordinator.swift; sourceTree = "<group>"; };
+		000000000000000000000204 /* CompositionRoot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositionRoot.swift; sourceTree = "<group>"; };
+		000000000000000000000205 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		000000000000000000000206 /* Development.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Development.xcconfig; sourceTree = "<group>"; };
+		000000000000000000000207 /* ScheduledMobilityDriver.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScheduledMobilityDriver.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		448628AF3073EB4500C34640 /* feature.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = feature.md; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		000000000000000000000301 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				000000000000000000000105 /* DriverDomain in Frameworks */,
+				000000000000000000000106 /* DriverData in Frameworks */,
+				000000000000000000000107 /* PlatformServices in Frameworks */,
+				000000000000000000000108 /* FeatureContracts in Frameworks */,
+				000000000000000000000109 /* DriverPresentation in Frameworks */,
+				00000000000000000000010A /* DesignSystem in Frameworks */,
+				00000000000000000000010B /* DriverUIKit in Frameworks */,
+				00000000000000000000010C /* DriverSwiftUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		000000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				448628AF3073EB4500C34640 /* feature.md */,
+				000000000000000000000401 /* DriverApp */,
+				000000000000000000000402 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		000000000000000000000401 /* DriverApp */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000403 /* App */,
+				000000000000000000000404 /* Configuration */,
+			);
+			path = DriverApp;
+			sourceTree = "<group>";
+		};
+		000000000000000000000402 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000207 /* ScheduledMobilityDriver.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		000000000000000000000403 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000201 /* AppDelegate.swift */,
+				000000000000000000000202 /* SceneDelegate.swift */,
+				000000000000000000000203 /* AppCoordinator.swift */,
+				000000000000000000000204 /* CompositionRoot.swift */,
+				000000000000000000000205 /* Info.plist */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		000000000000000000000404 /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000206 /* Development.xcconfig */,
+			);
+			path = Configuration;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		000000000000000000000601 /* ScheduledMobilityDriver */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000000000701 /* Build configuration list for PBXNativeTarget "ScheduledMobilityDriver" */;
+			buildPhases = (
+				000000000000000000000302 /* Sources */,
+				000000000000000000000301 /* Frameworks */,
+				000000000000000000000303 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ScheduledMobilityDriver;
+			packageProductDependencies = (
+				000000000000000000000501 /* DriverDomain */,
+				000000000000000000000502 /* DriverData */,
+				000000000000000000000503 /* PlatformServices */,
+				000000000000000000000504 /* FeatureContracts */,
+				000000000000000000000505 /* DriverPresentation */,
+				000000000000000000000506 /* DesignSystem */,
+				000000000000000000000507 /* DriverUIKit */,
+				000000000000000000000508 /* DriverSwiftUI */,
+			);
+			productName = ScheduledMobilityDriver;
+			productReference = 000000000000000000000207 /* ScheduledMobilityDriver.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		000000000000000000000002 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2620;
+				LastUpgradeCheck = 2620;
+				TargetAttributes = {
+					000000000000000000000601 = {
+						CreatedOnToolsVersion = 26.2;
+					};
+				};
+			};
+			buildConfigurationList = 000000000000000000000702 /* Build configuration list for PBXProject "ScheduledMobilityDriver" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 000000000000000000000001;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				000000000000000000000500 /* XCLocalSwiftPackageReference "DriverModules" */,
+			);
+			productRefGroup = 000000000000000000000402 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				000000000000000000000601 /* ScheduledMobilityDriver */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		000000000000000000000303 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		000000000000000000000302 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				000000000000000000000101 /* AppDelegate.swift in Sources */,
+				000000000000000000000102 /* SceneDelegate.swift in Sources */,
+				000000000000000000000103 /* AppCoordinator.swift in Sources */,
+				000000000000000000000104 /* CompositionRoot.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		000000000000000000000801 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 000000000000000000000206 /* Development.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		000000000000000000000802 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 000000000000000000000206 /* Development.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES_AGGRESSIVE;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		000000000000000000000803 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 000000000000000000000206 /* Development.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6LKNTWL8YK;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DriverApp/App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		000000000000000000000804 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 000000000000000000000206 /* Development.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 6LKNTWL8YK;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = DriverApp/App/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		000000000000000000000701 /* Build configuration list for PBXNativeTarget "ScheduledMobilityDriver" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000803 /* Debug */,
+				000000000000000000000804 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		000000000000000000000702 /* Build configuration list for PBXProject "ScheduledMobilityDriver" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000801 /* Debug */,
+				000000000000000000000802 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		000000000000000000000500 /* XCLocalSwiftPackageReference "DriverModules" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = DriverModules;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		000000000000000000000501 /* DriverDomain */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DriverDomain;
+		};
+		000000000000000000000502 /* DriverData */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DriverData;
+		};
+		000000000000000000000503 /* PlatformServices */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PlatformServices;
+		};
+		000000000000000000000504 /* FeatureContracts */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FeatureContracts;
+		};
+		000000000000000000000505 /* DriverPresentation */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DriverPresentation;
+		};
+		000000000000000000000506 /* DesignSystem */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DesignSystem;
+		};
+		000000000000000000000507 /* DriverUIKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DriverUIKit;
+		};
+		000000000000000000000508 /* DriverSwiftUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DriverSwiftUI;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 000000000000000000000002 /* Project object */;
+}

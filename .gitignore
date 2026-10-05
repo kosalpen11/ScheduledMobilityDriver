@@ -1,0 +1,35 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.hmap
+
+# Swift Package Manager
+.build/
+Package.resolved
+!ScheduledMobilityDriver.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+
+# Coverage and generated reports
+*.xccovreport
+*.xcresult
+*.log
+
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+
+# Temporary editor and tooling files
+.swiftpm/
+.idea/
+.vscode/
+*.swp
+*.swo
