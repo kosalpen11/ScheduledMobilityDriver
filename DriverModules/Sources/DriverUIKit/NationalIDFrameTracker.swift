@@ -90,7 +90,6 @@ final class NationalIDFrameTracker {
     func process(
         sampleBuffer: CMSampleBuffer,
         guideRect: CGRect,
-        isDeviceShaking: Bool,
         now: CFTimeInterval = CACurrentMediaTime()
     ) -> NIDDetectionResult {
         let gap = lastCheck.map { now - $0 > NIDTrackingConfig.maximumFrameGap || now - $0 <= 0 } ?? true
@@ -183,7 +182,7 @@ final class NationalIDFrameTracker {
             : !focusOK
             ? .focus
             : nil
-        let eligible = eligibilityBlocker == nil && !isDeviceShaking
+        let eligible = eligibilityBlocker == nil
 
         if toleratedMissingBoundary {
             stability.preserveHoldForMissingBoundary(now: now)

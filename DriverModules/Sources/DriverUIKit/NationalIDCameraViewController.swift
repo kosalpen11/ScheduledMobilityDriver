@@ -6,7 +6,6 @@
 //
 
 import AVFoundation
-import CoreMotion
 import UIKit
 import Vision
 
@@ -23,7 +22,6 @@ final class NationalIDCameraViewController: UIViewController {
     private let session = AVCaptureSession()
     private let videoOutput = AVCaptureVideoDataOutput()
     private let photoOutput = AVCapturePhotoOutput()
-    private let motionManager = CMMotionManager()
     private let sessionQueue = DispatchQueue(label: "driver.nid.camera.session")
     private let visionQueue = DispatchQueue(label: "driver.nid.camera.vision")
     private let tracker = NationalIDFrameTracker()
@@ -41,7 +39,6 @@ final class NationalIDCameraViewController: UIViewController {
     private var isCapturing = false
     private var frameLogCounter = 0
     private var captureDevice: AVCaptureDevice?
-    private var latestMotionMagnitude: Double = 0
     private var lastFocusSteerDate = Date.distantPast
     private var lastVisionSampleTime: CMTime?
     private let visionInterval: Double = 0.12
@@ -82,7 +79,6 @@ final class NationalIDCameraViewController: UIViewController {
         configurePreview()
         configureChrome()
         configureSession()
-        configureMotion()
     }
 
     override func viewDidLayoutSubviews() {
@@ -123,7 +119,6 @@ final class NationalIDCameraViewController: UIViewController {
         super.viewDidAppear(animated)
         lastGuideBounds = nil
         view.setNeedsLayout()
-        startMotionUpdates()
         sessionQueue.async { [session] in
             if session.isRunning == false {
                 session.startRunning()
@@ -133,7 +128,6 @@ final class NationalIDCameraViewController: UIViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        stopMotionUpdates()
         displayedPreviewQuad = nil
         scanLine.removeAllAnimations()
         lastStableLiveQuad = nil
@@ -287,31 +281,6 @@ final class NationalIDCameraViewController: UIViewController {
         }
     }
 
-    private func configureMotion() {
-        motionManager.deviceMotionUpdateInterval = 1.0 / 30.0
-    }
-
-    private func startMotionUpdates() {
-        guard motionManager.isDeviceMotionAvailable else { return }
-        motionManager.startDeviceMotionUpdates(to: .main) { [weak self] motion, _ in
-            guard let self, let motion else { return }
-            let rotation = motion.rotationRate
-            let acceleration = motion.userAcceleration
-            let rotationMagnitude = sqrt(rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z)
-            let accelerationMagnitude = sqrt(acceleration.x * acceleration.x + acceleration.y * acceleration.y + acceleration.z * acceleration.z)
-            self.latestMotionMagnitude = max(rotationMagnitude / 2.2, accelerationMagnitude / 0.18)
-        }
-    }
-
-    private func stopMotionUpdates() {
-        motionManager.stopDeviceMotionUpdates()
-        latestMotionMagnitude = 0
-    }
-
-    private var isDeviceShaking: Bool {
-        latestMotionMagnitude > 1
-    }
-
     private func updateOverlay(corners: NationalIDQuad?, stable: Bool, status: NationalIDCaptureStatus) {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
@@ -431,10 +400,9 @@ final class NationalIDCameraViewController: UIViewController {
         }
     }
 
-    private func status(for result: NIDDetectionResult, isShaking: Bool, previewMetrics: NationalIDGeometryMetrics?) -> NationalIDCaptureStatus {
+    private func status(for result: NIDDetectionResult, previewMetrics: NationalIDGeometryMetrics?) -> NationalIDCaptureStatus {
         guard result.boundary != nil else { return .noDocument }
         if result.cardCutOff { return .align }
-        if isShaking { return .unstable }
         if let previewMetrics, previewMetrics.isLandscape == false { return .wrongOrientation }
         if result.tooDark || result.tooBright { return .align }
         if result.hasGlare { return .glare }
@@ -491,7 +459,7 @@ final class NationalIDCameraViewController: UIViewController {
             " previewWidth=\(Self.formatNumber($0.width)) previewHeight=\(Self.formatNumber($0.height)) isLandscapeInPreview=\($0.isLandscape) previewTopEdge=\(Self.formatNumber($0.topEdge)) previewBottomEdge=\(Self.formatNumber($0.bottomEdge)) previewLeftEdge=\(Self.formatNumber($0.leftEdge)) previewRightEdge=\(Self.formatNumber($0.rightEdge))"
         } ?? " previewWidth=0.000 previewHeight=0.000 isLandscapeInPreview=false"
         print(
-            "[NID][FRAME] status=\(status.rawValue) result=\(result.status) progress=\(Self.formatNumber(result.progress)) sharp=\(Self.formatNumber(result.sharpness)) focusOK=\(result.focusOK) qualityOK=\(result.qualityOK) eligible=\(result.eligible) blocker=\(result.blocker?.rawValue ?? "none") cardPresent=\(result.cardPresent) documentConfirmed=\(result.documentConfirmed) ocrAgeMs=\(result.ocrAgeMs.map(String.init) ?? "nil") textOutside=\(result.textOutside) dark=\(result.tooDark) bright=\(result.tooBright) glare=\(result.hasGlare) blurry=\(result.blurry) cutoff=\(result.cardCutOff) missing=\(result.boundaryMissing) deviceMotion=\(Self.formatNumber(CGFloat(latestMotionMagnitude)))\(previewMetricsText) \(cornersText)\(previewText)"
+            "[NID][FRAME] status=\(status.rawValue) result=\(result.status) progress=\(Self.formatNumber(result.progress)) sharp=\(Self.formatNumber(result.sharpness)) focusOK=\(result.focusOK) qualityOK=\(result.qualityOK) eligible=\(result.eligible) blocker=\(result.blocker?.rawValue ?? "none") cardPresent=\(result.cardPresent) documentConfirmed=\(result.documentConfirmed) ocrAgeMs=\(result.ocrAgeMs.map(String.init) ?? "nil") textOutside=\(result.textOutside) dark=\(result.tooDark) bright=\(result.tooBright) glare=\(result.hasGlare) blurry=\(result.blurry) cutoff=\(result.cardCutOff) missing=\(result.boundaryMissing)\(previewMetricsText) \(cornersText)\(previewText)"
         )
         if let previewMetrics {
             print("[NID][Orientation] visionOrientation=\(visionOrientation.rawValue) videoOrientation=\(videoOrientation.rawValue) previewOrientation=\(previewLayer?.connection?.videoOrientation.rawValue ?? -1) horizontalPair=\(Self.formatNumber(previewMetrics.width)) verticalPair=\(Self.formatNumber(previewMetrics.height)) landscape=\(previewMetrics.isLandscape)")
@@ -539,27 +507,20 @@ extension NationalIDCameraViewController: AVCaptureVideoDataOutputSampleBufferDe
             lastVisionSampleTime = timestamp
         }
 
-        let shaking = isDeviceShaking
-        if shaking {
-            debugLog("PIPELINE precheck=motion action=trackNoReady")
-        }
-
         bufferSizeLock.lock()
         let guide = captureGuide
         bufferSizeLock.unlock()
         let result = tracker.process(
             sampleBuffer: sampleBuffer,
             guideRect: guide,
-            isDeviceShaking: shaking,
             now: CACurrentMediaTime()
         )
         let previewMetrics = previewMetrics(for: result.boundary)
-        let status = status(for: result, isShaking: shaking, previewMetrics: previewMetrics)
+        let status = status(for: result, previewMetrics: previewMetrics)
         steerFocusIfNeeded(to: result.boundary)
         debugLogFrame(result: result, status: status)
         updateOverlay(corners: result.boundary, stable: status == .ready, status: status)
-        if shaking == false,
-           status == .ready,
+        if status == .ready,
            let stableQuad = result.boundary,
            let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
 
