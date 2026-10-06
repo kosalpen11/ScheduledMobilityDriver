@@ -52,5 +52,7 @@
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Scheduled Mobility uses your location while available or serving assigned trips.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Scheduled Mobility uses the camera so drivers can capture document photos for review.</string>
 </dict>
 </plist>

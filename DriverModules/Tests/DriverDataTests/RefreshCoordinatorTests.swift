@@ -13,7 +13,7 @@ final class RefreshCoordinatorTests: XCTestCase {
     func testConcurrentRefreshSharesOneInFlightOperation() async throws {
         let storage = InMemoryTokenStorage(tokens: oldTokens)
         let counter = RefreshCounter()
-        let coordinator = RefreshCoordinator(storage: storage) { _, _ in
+        let coordinator = RefreshCoordinator(storage: storage) { _, _, _ in
             await counter.increment()
             try await Task.sleep(nanoseconds: 100_000_000)
             return self.newTokens
@@ -32,7 +32,7 @@ final class RefreshCoordinatorTests: XCTestCase {
 
     func testInvalidRefreshClearsStoredTokens() async throws {
         let storage = InMemoryTokenStorage(tokens: oldTokens)
-        let coordinator = RefreshCoordinator(storage: storage) { _, _ in
+        let coordinator = RefreshCoordinator(storage: storage) { _, _, _ in
             throw AuthFailure.invalidRefreshToken
         }
 
@@ -47,7 +47,7 @@ final class RefreshCoordinatorTests: XCTestCase {
 
     func testTransientRefreshFailurePreservesStoredTokens() async throws {
         let storage = InMemoryTokenStorage(tokens: oldTokens)
-        let coordinator = RefreshCoordinator(storage: storage) { _, _ in
+        let coordinator = RefreshCoordinator(storage: storage) { _, _, _ in
             throw AuthFailure.transient("offline")
         }
 

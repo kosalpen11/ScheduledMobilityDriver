@@ -90,7 +90,7 @@ Implemented:
 - Mock repository with explicit runtime wiring for local development and testable duplicate upload/session cleanup behavior.
 - Upload validation for size, magic-byte MIME detection, profile-photo type, expiry, and vehicle field rules.
 - UIKit profile/onboarding screen injected through `DriverProfileScreenFactory`.
-- Profile status card, onboarding checklist, vehicle assignment card, document status list, document picker upload flow, selected-file confirmation, loading states, alerts, and logout.
+- Profile status card, onboarding checklist, vehicle assignment card, document status list, photo library/camera/file upload flow, selected-file confirmation, loading states, alerts, and logout.
 - Backend-derived eligibility policy for operational readiness and submit availability.
 - Authoritative profile refresh after upload and submit mutations.
 - Native navigation, large touch targets, restrained colors, rounded cards, haptics, VoiceOver labels, Dynamic Type, dark mode, and iOS 15-compatible APIs.
@@ -98,6 +98,10 @@ Implemented:
 Phase 7 profile/onboarding experience:
 
 - Driver identity shows full name, masked phone number, and friendly account status copy instead of raw backend enums.
+- The full Driver Profile screen now uses a compact identity header with name, masked phone number, and friendly account status.
+- Profile content is organized as one Next step section, a Documents section, a Vehicle section, Help, and a separate Account section for Sign out.
+- Repeated status guidance and nested card layers were reduced so the screen reads as a short driver checklist instead of a dense form.
+- Document progress is calculated from the actual required document rows, for example “2 of 3 required documents approved.”
 - Status guidance matches backend rules:
   - `PENDING`: “Complete your application.”
   - `DOCS_SUBMITTED`: “Your application is under review.”
@@ -109,8 +113,24 @@ Phase 7 profile/onboarding experience:
 - Account readiness stays distinct from online availability.
 - Document names are driver-friendly: National ID, Driving licence, Profile photo, Vehicle registration, Vehicle insurance.
 - Document statuses are plain text: Not uploaded, Under review, Approved, Needs replacement, Expired.
-- Document details show rejection reasons and expiry dates from the backend where present.
-- Upload and replacement actions open from document details; selected-file confirmation, validation, upload loading state, recoverable errors, and authoritative profile refresh remain intact.
+- Documents are grouped into Driver documents and Vehicle documents. Vehicle documents are shown only when an active assigned vehicle makes them relevant.
+- Document rows are full-width tappable rows with SF Symbols, plain text status, expiry/rejection context where relevant, and disclosure indicators.
+- Document details now use a native pushed detail screen instead of an overloaded alert.
+- Document details show document name, text status, expiry date when present or required, backend rejection reason when present, one short next-step sentence, accepted formats, and the 10 MB upload limit.
+- Upload and replacement actions open from document details only when supported. Drivers can choose an image from the photo library, capture a camera photo when available, or use Files for supported document files; remote preview is still shown as unavailable because no verified document-content endpoint exists.
+- National ID photo capture uses a custom Vision camera path instead of the generic system camera. The live frame tracker scores candidate rectangles with `0.15c + 0.15a + 0.20cov + 0.15g + 0.30cont + 0.05anch - motionPenalty`, smooths corners with a rolling mean, applies CoreMotion shake rejection, steers focus/exposure to the detected card center, and auto-captures with flash off only after stable ready frames.
+- National ID physical shape is measured from actual quad edge distances in oriented pixel space: top, bottom, left, and right edges are averaged into two axes, then `min(edgeA, edgeB) / max(edgeA, edgeB)` is compared against the NID target aspect of approximately `0.631`.
+- Vision quads are normalized before tracking and preview work: the longer opposite edge pair becomes normalized top/bottom, the shorter pair becomes normalized left/right, and the same four physical points are preserved. Raw and normalized edge lengths plus corner labels are logged for device diagnosis.
+- Invalid document shape, preview-space wrong orientation, too-small, unstable, and align/reposition states are separate decisions. Wrong orientation is now based only on the quad after converting all four corners into preview coordinates. The conversion explicitly handles Vision `.right` using the proven capture mapping `(1 - visionY, 1 - visionX)`, explicitly sets portrait orientation on video, photo, and preview connections, handles Vision bottom-left coordinates, preview-layer aspect-fill conversion, mirroring, and reorders transformed corners before measuring preview edges. Frame-to-frame motion is exposed as raw and EMA-smoothed values (`motionRaw` and `motionEMA`); the smoothed signal drives the stability gate while each status keeps a clear driver-facing message.
+- Debug National ID capture logs now include throttled live frame score components, rejection/status reason, stable-frame count, rectangle motion, device motion, motion penalty, Vision corners, preview-space corner samples, focus points, auto-capture events, final photo byte count, and processing quality gates under `[NID][FRAME]`, `[NID] FOCUS`, `[NID] CAPTURE`, and `[NID][PROCESS]`.
+- Live National ID guidance now uses plain rejection reasons such as move closer, move back, hold steady, reduce glare, turn the card to landscape, and align the card.
+- The live camera overlay now converts Vision rectangle points into preview-layer coordinates through an explicit helper before drawing the guide, which makes frame-fit tuning easier to verify on device.
+- National ID gallery/photo input runs rectangle detection, 10% corner expansion, Core Image perspective correction, canonical ID-1 aspect cleanup, sharpness/glare gates, highlight/shadow plus contrast enhancement, and OCR/MRZ expiry extraction with rotation retry. The sharpness gate logs Sobel RMS (`scale=sobelRMS`) so a prior squared-energy reading such as `0.012` is interpreted as approximately `0.109` RMS before comparison with the `0.085` floor.
+- Expired National ID MRZ dates are rejected before upload. When a valid expiry is read, it is used automatically for the upload payload; otherwise the driver is asked to enter the expiry date manually.
+- Upload confirmation now presents a native preview screen. Image documents show the selected photo; National ID shows the processed cropped/enhanced image that will be uploaded and offers a Retake photo action before upload.
+- Expiry is requested only for document types that require it. Vehicle document uploads automatically use the assigned vehicle id from the profile and never ask the driver to enter it.
+- Selected-file confirmation, validation, upload loading state, recoverable errors, and authoritative profile refresh remain intact.
+- Refresh failures preserve already loaded profile content and show a retryable message instead of blanking the screen.
 - Vehicle assignment is read-only and explains missing assignment as operator-managed.
 - Help and account is separated from operational actions; Sign out appears there.
 - Support options are shown only if configured; none are invented by the app.
@@ -332,6 +352,14 @@ Phase 4 is acceptable when:
 - Tests cover action resolution, assignment permissions, conflicts, reassignment, duplicate submissions, and mock transition behavior.
 
 Latest validation:
+
+- NID performance correction: scan animation survives status-triggered layout passes and only restarts for changed geometry, camera reappearance, or Reduce Motion changes. Sharpness thumbnails use pixel scale 1 instead of display scale. Processing duration is logged as `durationMs`. Device performance remains unmeasured.
+
+- NID scanning/glare UI: vertical scan-line sweep inside the centered landscape guide, responsive to Reduce Motion. Live luma-plane sampling and selected-card quality measurement replace whole-frame byte assumptions; still highlights use grayscale rendering. Flash remains off. Generic simulator build passed; device glare calibration and automated tests were not run.
+
+- NID overlay/crop refinement: time-based presentation EMA with stale/target-change resets and Reduce Motion support; uniform boundary-limited crop expansion; removed destructive final aspect trimming. NID target remains 0.631. Generic iOS Simulator build passed. Automated tests and physical camera alignment/crop completeness checks were not performed. Live-to-still candidate matching remains incomplete.
+
+- NID recovery correction (2026-10-06): failed stability attempts release their anchor so repositioning can recover. Missing detections and rejected motion/luma prechecks restart the stable window. Five consecutive stable evaluations, raw-motion validation, and 450 ms dwell gate capture. Existing short-dropout geometry retention is preserved. Simulator compilation passed with the generic iOS Simulator destination; automated tests and physical camera verification were not performed for this correction.
 
 - App build passed after the Home layout/profile sheet refinement: `xcodebuild -project ScheduledMobilityDriver.xcodeproj -scheme ScheduledMobilityDriver -destination 'platform=iOS Simulator,id=8E235B8E-1C0B-43AE-807B-FE1E232B05CA' build`.
 - Automated tests were not run for this Home refinement phase per instruction.

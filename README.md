@@ -29,10 +29,16 @@ Home is currently composed with the SwiftUI renderer by default. The UIKit Home 
 
 Latest validation run:
 
+- `xcodebuild -project ScheduledMobilityDriver.xcodeproj -scheme ScheduledMobilityDriver -destination 'generic/platform=iOS Simulator' build` passed after the National ID capture logging, overlay mapping, CoreMotion shake gate, focus steering, and upload preview/retake refinement.
+- `xcodebuild -scheme DriverModules-Package -destination 'platform=iOS Simulator,id=617D7F10-00AE-4DDB-92BA-E30F1FB60B12' test` passed on an iPhone SE (3rd generation) iOS 17.0 simulator after the National ID geometry fix. The suite executed DriverData, DriverDomain, DriverPresentation, and DriverUIKit tests, including seven National ID geometry tests.
 - `xcodebuild -project ScheduledMobilityDriver.xcodeproj -scheme ScheduledMobilityDriver -destination 'platform=iOS Simulator,id=8E235B8E-1C0B-43AE-807B-FE1E232B05CA' build` passed on Xcode 26.2 using an iPhone 17 simulator on iOS 26.2 after the Home layout/profile sheet refinement.
-- Automated tests were not run for this Home refinement phase per instruction.
+- `xcodebuild -project ScheduledMobilityDriver.xcodeproj -scheme ScheduledMobilityDriver -destination 'generic/platform=iOS Simulator' build` passed after the Driver Profile and document screen refinement.
+- The refined profile was visually inspected on an iPhone SE (3rd generation) iOS 17.0 simulator using mock profile data reached through the Debug development bypass. The compact header, Next step, document progress, driver document rows, vehicle, help, and account sections were visible and readable on the small screen.
+- Automated tests were not run for this Driver Profile/document refinement phase per instruction.
 - Runtime OTP verification against staging was not performed in this phase; compilation only was verified.
+- Live National ID auto-capture alignment was not verified on a physical device in this pass. Debug builds now emit `[NID][FRAME]`, `[NID] CAPTURE`, `[NID] FOCUS`, and `[NID][PROCESS]` logs to help tune frame fit, stability, focus steering, motion rejection, preview-space orientation, and processing quality on-device. Frame motion uses an EMA (`motionRaw` and `motionEMA`) so transient Vision jitter does not make the guidance message oscillate. Preview geometry now explicitly accounts for Vision `.right`, an explicitly configured portrait orientation on video, photo, and preview connections, bottom-left Vision coordinates, preview-layer aspect-fill conversion, mirroring, post-transform corner ordering, and long-pair quad normalization before tracking. National ID processing sharpness is logged as Sobel RMS (`scale=sobelRMS`) so the `0.085` floor is comparable to gradient magnitude rather than squared energy.
 - Minimum-OS runtime behavior on an actual iOS 15 simulator/device remains unverified because the available concrete simulator was iOS 26.2.
+- Additional simulator screenshots and broader device/dark-mode/Dynamic Type visual checks were blocked by low host disk space during this pass.
 
 ## Purpose
 
@@ -268,7 +274,7 @@ Implemented client behavior:
 - `DriverDocumentUploadValidator` enforces local size, file type, expiry, and vehicle-field rules before network upload.
 - `DriverEligibilityPolicy` centralizes operational eligibility and onboarding-submission checks.
 - `DriverProfileViewModel` refreshes authoritative profile state after uploads and submission, prevents duplicate submissions/uploads, and preserves backend logic outside Views.
-- `DriverProfileViewController` provides profile status, onboarding checklist, vehicle assignment, document status rows, document picker upload flow, loading/error feedback, haptics, Dynamic Type, VoiceOver labels, dark mode colors, and iOS 15-compatible native navigation.
+- `DriverProfileViewController` provides profile status, onboarding checklist, vehicle assignment, document status rows, photo library/camera/file upload flow, National ID Vision processing, loading/error feedback, haptics, Dynamic Type, VoiceOver labels, dark mode colors, and iOS 15-compatible native navigation.
 - `AppCoordinator` opens Phase 3 through `DriverProfileScreenFactory`; logout clears driver session state before auth tokens.
 
 ## Home layout and profile access refinement
@@ -456,7 +462,9 @@ For reusable controls, use UIViewRepresentable/UIViewControllerRepresentable to 
 | Native sheet | UISheetPresentationController with medium and large detents |
 | OTP autofill | UITextField or SwiftUI TextField with oneTimeCode content type |
 | Photo selection | PHPickerViewController |
-| Camera/document selection | UIImagePickerController / UIDocumentPickerViewController |
+| Camera/photo/document selection | UIImagePickerController / PHPickerViewController / UIDocumentPickerViewController |
+| National ID live camera | AVCaptureSession + Vision rectangle detection |
+| National ID gallery processing | Vision rectangle detection, Core Image perspective correction, quality gates, OCR/MRZ expiry extraction |
 | Concurrency | async/await, Task, actors |
 | Localization | Localizable.strings and stringsdict where needed |
 
@@ -565,3 +573,15 @@ Before backend integration, inspect the backend repository and replace provision
 - [Customize and resize sheets in UIKit — WWDC21](https://developer.apple.com/videos/play/wwdc2021/10063/)
 - [UISheetPresentationController](https://developer.apple.com/documentation/uikit/uisheetpresentationcontroller)
 # ScheduledMobilityDriver
+
+### NID tracking recovery (2026-10-06)
+
+Performance follow-up: scan animations no longer restart on unchanged layout; status text is updated only when it changes. Sharpness downsampling uses scale 1 to respect its pixel budget. `[NID][PROCESS] durationMs=...` records total still-processing time. These corrections compiled for iOS Simulator; physical-device latency has not been measured.
+
+The centered 0.631 NID guide includes a repeating scan line, disabled under Reduce Motion. Live quality sampling explicitly uses full-range bi-planar luminance and measures the selected card bounding region after detection. Final highlight checks render grayscale pixels and log the clipped fraction before enhancement. These are clipping heuristics, not proof of glare-free readability. Simulator compilation passed; physical-camera glare calibration and automated tests were not performed for this update.
+
+Preview smoothing uses elapsed-time EMA (120 ms time constant), resetting after gaps over 500 ms or bounding-box IoU below 0.5. Reduce Motion displays current corners directly. This filter only affects presentation. Still correction preserves all corrected pixels and uses one common boundary-limited expansion margin; no final aspect-ratio trimming is applied. The NID geometry target remains 0.631. Simulator build passed for this update; automated tests and device camera checks were not run.
+
+The tracker preserves the existing short-dropout recovery but restarts stability evidence after missing detections, motion precheck rejection, or luma precheck rejection. Repositioning releases the old anchor. Capture requires five consecutive stable evaluations and at least 450 ms of dwell; raw corner motion also gates capture. Aspect calculation and thresholds are unchanged.
+
+Validation: simulator compilation passed using `xcodebuild -project ScheduledMobilityDriver.xcodeproj -scheme ScheduledMobilityDriver -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/ScheduledMobilityDriver-NID-Status-DD CODE_SIGNING_ALLOWED=NO -quiet build`. Automated tests and physical camera verification were not performed for this correction.

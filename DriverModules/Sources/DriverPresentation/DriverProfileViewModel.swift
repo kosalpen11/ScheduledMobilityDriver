@@ -44,7 +44,13 @@ public final class DriverProfileViewModel: ObservableObject {
             let profile = try await loadProfile()
             apply(profile: profile)
         } catch {
-            state = .failed(Self.message(for: error))
+            let message = Self.message(for: error)
+            if let profile {
+                self.message = message
+                apply(profile: profile)
+            } else {
+                state = .failed(message)
+            }
         }
     }
 
@@ -123,6 +129,10 @@ public struct DriverProfileSummary: Equatable {
     public let vehicleDetail: String
     public let checklist: [DriverChecklistItem]
     public let documents: [DriverDocumentRow]
+    public let driverDocuments: [DriverDocumentRow]
+    public let vehicleDocuments: [DriverDocumentRow]
+    public let documentProgressText: String
+    public let hasVehicleDocumentRequirements: Bool
     public let supportOptions: [DriverSupportOption]
 
     public init(profile: DriverProfileDetail, canOperate: Bool, canSubmit: Bool) {
@@ -141,6 +151,10 @@ public struct DriverProfileSummary: Equatable {
         self.vehicleDetail = Self.vehicleDetail(profile.vehicle)
         self.checklist = Self.makeChecklist(profile: profile)
         self.documents = Self.makeDocuments(profile: profile)
+        self.driverDocuments = self.documents.filter { $0.type.isVehicleDocument == false }
+        self.vehicleDocuments = self.documents.filter { $0.type.isVehicleDocument }
+        self.hasVehicleDocumentRequirements = profile.vehicle != nil
+        self.documentProgressText = Self.documentProgressText(documents: self.documents)
         self.supportOptions = []
     }
 
@@ -171,6 +185,13 @@ public struct DriverProfileSummary: Equatable {
                 actionTitle: item.state == .missing ? "Upload" : "Replace"
             )
         }
+    }
+
+    private static func documentProgressText(documents: [DriverDocumentRow]) -> String {
+        let approvedCount = documents.filter { $0.status == .approved }.count
+        let requiredCount = documents.count
+        let plural = requiredCount == 1 ? "document" : "documents"
+        return "\(approvedCount) of \(requiredCount) required \(plural) approved"
     }
 
     private static func state(

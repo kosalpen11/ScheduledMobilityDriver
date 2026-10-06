@@ -76,6 +76,10 @@ let package = Package(
         .testTarget(
             name: "DriverPresentationTests",
             dependencies: ["DriverPresentation", "DriverDomain"]
+        ),
+        .testTarget(
+            name: "DriverUIKitTests",
+            dependencies: ["DriverUIKit"]
         )
     ]
 )
