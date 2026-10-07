@@ -151,11 +151,11 @@ final class NationalIDFrameTracker {
         emaSharpness = NIDTrackingConfig.emaAlpha * quality.sharpness
             + (1 - NIDTrackingConfig.emaAlpha) * (emaSharpness ?? quality.sharpness)
         
-        // Focus hysteresis with time-based recovery
-        // When focus was good, maintain it until retain threshold; when bad, require acquire threshold to recover
-        // After 2 seconds of bad focus, reset to allow re-acquisition from current level
-        let focusAcquireThreshold = NIDTrackingConfig.focusAcquireThreshold  // 500
-        let focusRetainThreshold = NIDTrackingConfig.focusRetainThreshold    // 350
+        // Focus hysteresis with time-based recovery.
+        // When focus was good, maintain it until retain threshold; when bad,
+        // require acquire threshold to recover.
+        let focusAcquireThreshold = NIDTrackingConfig.focusAcquireThreshold
+        let focusRetainThreshold = NIDTrackingConfig.focusRetainThreshold
         
         let focusOK = if focusWasGood {
             quality.sharpness >= focusRetainThreshold

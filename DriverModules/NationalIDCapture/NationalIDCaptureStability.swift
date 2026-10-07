@@ -40,8 +40,10 @@ enum NIDTrackingConfig {
     static let maximumLumaDrift: CGFloat = 16.0
 
     static let blurrySharpness: CGFloat = 200.0
-    static let focusAcquireThreshold: CGFloat = 420.0
-    static let focusRetainThreshold: CGFloat = 350.0
+    // Lowered to reduce long "blurry" lockout on mid-tier devices while
+    // still preserving blur rejection via blurrySharpness and post-capture QA.
+    static let focusAcquireThreshold: CGFloat = 320.0
+    static let focusRetainThreshold: CGFloat = 260.0
     static let readySharpness: CGFloat = focusAcquireThreshold
 
     static let emaAlpha: CGFloat = 0.35

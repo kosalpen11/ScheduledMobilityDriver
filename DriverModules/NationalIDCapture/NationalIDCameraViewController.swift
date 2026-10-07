@@ -53,6 +53,8 @@ public final class NationalIDCameraViewController: UIViewController {
     private var lastPreviewUpdate: CFTimeInterval?
     private let bufferSizeLock = NSLock()
     private var previewBufferSize: CGSize = .zero
+    private var missingBoundaryStreak = 0
+    private var lastCenterRefocusDate = Date.distantPast
 
     /// Last trustworthy normalized Vision quad that caused the live pipeline to reach READY.
     private var lastStableLiveQuad: NationalIDQuad?
@@ -267,6 +269,7 @@ public final class NationalIDCameraViewController: UIViewController {
                   self.session.canAddInput(input)
             else { return }
             self.captureDevice = camera
+            self.configureCaptureDevice(camera)
             self.session.addInput(input)
 
             self.videoOutput.alwaysDiscardsLateVideoFrames = true
@@ -381,31 +384,79 @@ public final class NationalIDCameraViewController: UIViewController {
     }
 
     private func steerFocusIfNeeded(to corners: NationalIDQuad?) {
-        guard let corners else { return }
+        guard let corners else {
+            steerFocusToCenterIfNeeded()
+            return
+        }
         let now = Date()
-        guard now.timeIntervalSince(lastFocusSteerDate) > 1.5 else { return }
+        guard now.timeIntervalSince(lastFocusSteerDate) > 1.0 else { return }
         lastFocusSteerDate = now
         let center = corners.center
-        let focusPoint = captureDevicePoint(fromVisionPoint: center)
+        let focusPoint = clampToCenterBias(captureDevicePoint(fromVisionPoint: center))
+        applyFocusAndExposure(at: focusPoint, reason: "track")
+    }
+
+    private func steerFocusToCenterIfNeeded() {
+        // Re-acquire at center when boundary is missing for a sustained period.
+        guard missingBoundaryStreak >= 8 else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastCenterRefocusDate) > 2.0 else { return }
+        lastCenterRefocusDate = now
+        applyFocusAndExposure(at: CGPoint(x: 0.5, y: 0.5), reason: "center-reacquire")
+    }
+
+    private func clampToCenterBias(_ point: CGPoint) -> CGPoint {
+        let minCenter: CGFloat = 0.30
+        let maxCenter: CGFloat = 0.70
+        return CGPoint(
+            x: min(max(point.x, minCenter), maxCenter),
+            y: min(max(point.y, minCenter), maxCenter)
+        )
+    }
+
+    private func applyFocusAndExposure(at point: CGPoint, reason: String) {
         sessionQueue.async { [weak self] in
-            guard let device = self?.captureDevice, device.isFocusPointOfInterestSupported || device.isExposurePointOfInterestSupported else { return }
+            guard let self,
+                  let device = self.captureDevice,
+                  device.isFocusPointOfInterestSupported || device.isExposurePointOfInterestSupported
+            else { return }
             do {
                 try device.lockForConfiguration()
                 if device.isFocusPointOfInterestSupported {
-                    device.focusPointOfInterest = focusPoint
-                    device.focusMode = .autoFocus
+                    device.focusPointOfInterest = point
+                    if device.isFocusModeSupported(.continuousAutoFocus) {
+                        device.focusMode = .continuousAutoFocus
+                    } else if device.isFocusModeSupported(.autoFocus) {
+                        device.focusMode = .autoFocus
+                    }
                 }
                 if device.isExposurePointOfInterestSupported {
-                    device.exposurePointOfInterest = focusPoint
+                    device.exposurePointOfInterest = point
                     device.exposureMode = .continuousAutoExposure
                 }
                 let ev = device.exposureTargetOffset
                 device.unlockForConfiguration()
-                self?.setLatestExposureTargetOffset(ev)
-                self?.debugLog("FOCUS point=\(Self.format(focusPoint)) ev=\(Self.formatNumber(CGFloat(ev)))")
+                self.setLatestExposureTargetOffset(ev)
+                self.debugLog("FOCUS point=\(Self.format(point)) reason=\(reason) ev=\(Self.formatNumber(CGFloat(ev)))")
             } catch {
-                self?.debugLog("FOCUS failed error=\(error.localizedDescription)")
+                self.debugLog("FOCUS failed error=\(error.localizedDescription)")
             }
+        }
+    }
+
+    private func configureCaptureDevice(_ device: AVCaptureDevice) {
+        do {
+            try device.lockForConfiguration()
+            if device.isFocusModeSupported(.continuousAutoFocus) {
+                device.focusMode = .continuousAutoFocus
+            }
+            if device.isExposureModeSupported(.continuousAutoExposure) {
+                device.exposureMode = .continuousAutoExposure
+            }
+            device.isSubjectAreaChangeMonitoringEnabled = true
+            device.unlockForConfiguration()
+        } catch {
+            debugLog("DEVICE config failed error=\(error.localizedDescription)")
         }
     }
 
@@ -560,6 +611,11 @@ extension NationalIDCameraViewController: AVCaptureVideoDataOutputSampleBufferDe
             guideRect: guide,
             now: CACurrentMediaTime()
         )
+        if result.boundary == nil {
+            missingBoundaryStreak += 1
+        } else {
+            missingBoundaryStreak = 0
+        }
         let previewMetrics = previewMetrics(for: result.boundary)
         let status = status(for: result, previewMetrics: previewMetrics)
         steerFocusIfNeeded(to: result.boundary)
