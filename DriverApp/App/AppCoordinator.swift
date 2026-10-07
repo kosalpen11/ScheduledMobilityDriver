@@ -5,6 +5,7 @@
 //  Created by Kosal Pen on 10/4/26.
 //
 
+import DesignSystem
 import DriverDomain
 import FeatureContracts
 import UIKit
@@ -145,47 +146,21 @@ final class AppCoordinator {
     }
 
     private func showResolvingDriver() {
-        let controller = UIViewController()
-        controller.view.backgroundColor = .systemBackground
-        let label = UILabel()
-        label.translatesAutoresizingMaskIntoConstraints = false
-        label.text = "Checking driver status..."
-        label.font = .preferredFont(forTextStyle: .body)
-        label.adjustsFontForContentSizeCategory = true
-        label.textColor = .secondaryLabel
-        let activity = UIActivityIndicatorView(style: .large)
-        activity.translatesAutoresizingMaskIntoConstraints = false
-        activity.startAnimating()
-        let stack = UIStackView(arrangedSubviews: [activity, label])
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        stack.axis = .vertical
-        stack.alignment = .center
-        stack.spacing = 16
-        controller.view.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.centerXAnchor.constraint(equalTo: controller.view.centerXAnchor),
-            stack.centerYAnchor.constraint(equalTo: controller.view.centerYAnchor),
-            stack.leadingAnchor.constraint(greaterThanOrEqualTo: controller.view.safeAreaLayoutGuide.leadingAnchor, constant: 24),
-            stack.trailingAnchor.constraint(lessThanOrEqualTo: controller.view.safeAreaLayoutGuide.trailingAnchor, constant: -24)
-        ])
-        navigationController.setViewControllers([controller], animated: false)
+        navigationController.setViewControllers([
+            AppLoadingViewController(
+                title: "Checking driver status",
+                message: "We’re getting your profile and requirements ready."
+            )
+        ], animated: false)
     }
 
     private func showRestoringSession() {
-        let controller = UIViewController()
-        controller.view.backgroundColor = .systemBackground
-
-        let activity = UIActivityIndicatorView(style: .large)
-        activity.translatesAutoresizingMaskIntoConstraints = false
-        activity.startAnimating()
-        controller.view.addSubview(activity)
-
-        NSLayoutConstraint.activate([
-            activity.centerXAnchor.constraint(equalTo: controller.view.centerXAnchor),
-            activity.centerYAnchor.constraint(equalTo: controller.view.centerYAnchor)
-        ])
-
-        navigationController.setViewControllers([controller], animated: false)
+        navigationController.setViewControllers([
+            AppLoadingViewController(
+                title: "Scheduled Mobility",
+                message: "Restoring your driver session."
+            )
+        ], animated: false)
     }
 
     private func showRestoreFailed(message: String) {
@@ -305,6 +280,8 @@ final class AppCoordinator {
             showTrip(id: id)
         case .showProfile:
             showProfileSummary()
+        case .openProfile:
+            showProfile()
         }
     }
 
@@ -416,5 +393,91 @@ final class AppCoordinator {
         ])
 
         navigationController.pushViewController(controller, animated: true)
+    }
+}
+
+private final class AppLoadingViewController: UIViewController {
+    private let loadingTitle: String
+    private let message: String
+
+    init(title: String, message: String) {
+        self.loadingTitle = title
+        self.message = message
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+        configureLayout()
+    }
+
+    private func configureLayout() {
+        let mark = UIView()
+        mark.translatesAutoresizingMaskIntoConstraints = false
+        mark.backgroundColor = DriverTheme.brandColor.withAlphaComponent(0.14)
+        mark.layer.cornerRadius = 28
+        mark.layer.cornerCurve = .continuous
+
+        let icon = UIImageView(image: UIImage(systemName: "figure.roll"))
+        icon.translatesAutoresizingMaskIntoConstraints = false
+        icon.tintColor = DriverTheme.brandColor
+        icon.contentMode = .scaleAspectFit
+        mark.addSubview(icon)
+
+        let titleLabel = UILabel()
+        titleLabel.text = loadingTitle
+        titleLabel.font = .systemFont(ofSize: UIFont.preferredFont(forTextStyle: .title2).pointSize, weight: .bold)
+        titleLabel.adjustsFontForContentSizeCategory = true
+        titleLabel.textAlignment = .center
+        titleLabel.numberOfLines = 0
+
+        let messageLabel = UILabel()
+        messageLabel.text = message
+        messageLabel.font = .preferredFont(forTextStyle: .body)
+        messageLabel.adjustsFontForContentSizeCategory = true
+        messageLabel.textColor = .secondaryLabel
+        messageLabel.textAlignment = .center
+        messageLabel.numberOfLines = 0
+
+        let activity = UIActivityIndicatorView(style: .medium)
+        activity.color = DriverTheme.brandColor
+        activity.startAnimating()
+
+        let progressPill = UIStackView(arrangedSubviews: [activity, messageLabel])
+        progressPill.axis = .horizontal
+        progressPill.alignment = .center
+        progressPill.spacing = 10
+        progressPill.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14)
+        progressPill.isLayoutMarginsRelativeArrangement = true
+        progressPill.backgroundColor = DriverTheme.cardColor
+        progressPill.layer.cornerRadius = DriverTheme.cardCornerRadius
+        progressPill.layer.cornerCurve = .continuous
+
+        let stack = UIStackView(arrangedSubviews: [mark, titleLabel, progressPill])
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.spacing = 18
+        view.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            mark.widthAnchor.constraint(equalToConstant: 56),
+            mark.heightAnchor.constraint(equalToConstant: 56),
+            icon.centerXAnchor.constraint(equalTo: mark.centerXAnchor),
+            icon.centerYAnchor.constraint(equalTo: mark.centerYAnchor),
+            icon.widthAnchor.constraint(equalToConstant: 28),
+            icon.heightAnchor.constraint(equalToConstant: 28),
+            progressPill.leadingAnchor.constraint(greaterThanOrEqualTo: stack.leadingAnchor),
+            progressPill.trailingAnchor.constraint(lessThanOrEqualTo: stack.trailingAnchor),
+            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 28),
+            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -28),
+            stack.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor)
+        ])
     }
 }

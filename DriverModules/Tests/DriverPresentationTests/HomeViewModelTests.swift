@@ -34,6 +34,29 @@ final class HomeViewModelTests: XCTestCase {
         ])
     }
 
+    func testIncompleteProfileDisablesAvailabilityAndSkipsAvailabilityRepository() async throws {
+        let trips = StubTripRepository(trips: [])
+        let availability = StubAvailabilityRepository(availability: .available, throwsOnRead: true)
+        let profile = StubDriverProfileRepository(profile: Self.incompleteProfile())
+        let model = HomeViewModel(
+            loadHomeSnapshot: LoadHomeSnapshotUseCase(trips: trips, availability: availability, clock: FixedClock()),
+            setAvailability: SetAvailabilityUseCase(repository: availability),
+            loadDriverProfile: LoadDriverProfileUseCase(repository: profile)
+        )
+
+        model.load()
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        guard case .empty(let snapshot) = model.state else {
+            return XCTFail("Expected empty, got \(model.state)")
+        }
+        XCTAssertEqual(snapshot.availability, .unavailable)
+        XCTAssertFalse(model.profileGate.allowsAvailability)
+        XCTAssertEqual(model.profileGate.prompt?.actionTitle, "Complete profile")
+        let availabilityReadCount = await availability.currentReadCount()
+        XCTAssertEqual(availabilityReadCount, 0)
+    }
+
     private func trip(id: String, offset: TimeInterval) -> ScheduledTrip {
         ScheduledTrip(
             id: UUID(uuidString: id)!,
@@ -47,6 +70,21 @@ final class HomeViewModelTests: XCTestCase {
             dropoffCoordinate: Coordinate(latitude: 1, longitude: 1),
             scheduledPickupAt: Date(timeIntervalSince1970: offset),
             passengerNote: nil
+        )
+    }
+
+    private static func incompleteProfile() -> DriverProfileDetail {
+        DriverProfileDetail(
+            id: UUID(),
+            userID: UUID(),
+            fullName: "Driver",
+            phone: "+85512000002",
+            status: .pending,
+            nationalIDMasked: nil,
+            vehicle: nil,
+            documents: [],
+            readiness: DriverReadiness(missing: [.nationalID], pendingReview: [], expired: [], hasActiveVehicle: false),
+            createdAt: nil
         )
     }
 }
@@ -77,17 +115,54 @@ private actor StubTripRepository: TripRepository {
 
 private actor StubAvailabilityRepository: AvailabilityRepository {
     private var availability: DriverAvailability
+    private let throwsOnRead: Bool
+    private var readCount = 0
 
-    init(availability: DriverAvailability) {
+    init(availability: DriverAvailability, throwsOnRead: Bool = false) {
         self.availability = availability
+        self.throwsOnRead = throwsOnRead
     }
 
     func currentAvailability() async throws -> DriverAvailability {
-        availability
+        readCount += 1
+        if throwsOnRead {
+            throw TripFailure.unavailable("Availability should not be read.")
+        }
+        return availability
     }
 
     func setAvailability(_ availability: DriverAvailability) async throws -> DriverAvailability {
         self.availability = availability
         return availability
     }
+
+    func currentReadCount() -> Int {
+        readCount
+    }
+}
+
+private actor StubDriverProfileRepository: DriverProfileRepository {
+    private let profile: DriverProfileDetail
+
+    init(profile: DriverProfileDetail) {
+        self.profile = profile
+    }
+
+    func loadProfile() async throws -> DriverProfileDetail {
+        profile
+    }
+
+    func loadDocuments() async throws -> [DriverDocument] {
+        profile.documents
+    }
+
+    func uploadDocument(_ upload: DriverDocumentUpload) async throws -> DriverDocument {
+        throw DriverProfileFailure.server("Unexpected upload.")
+    }
+
+    func submitOnboarding() async throws -> DriverProfileDetail {
+        throw DriverProfileFailure.server("Unexpected submit.")
+    }
+
+    func clearSessionState() async {}
 }

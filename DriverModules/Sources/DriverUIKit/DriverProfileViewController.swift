@@ -10,6 +10,7 @@ import DesignSystem
 import DriverDomain
 import DriverPresentation
 import FeatureContracts
+import NationalIDCapture
 import PhotosUI
 import UIKit
 import UniformTypeIdentifiers

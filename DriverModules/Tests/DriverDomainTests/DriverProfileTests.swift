@@ -50,6 +50,37 @@ final class DriverProfileTests: XCTestCase {
         }
     }
 
+    func testNationalIDUploadUsesFrontFieldByDefault() throws {
+        let jpeg = Data([0xFF, 0xD8, 0xFF])
+        let upload = DriverDocumentUpload(
+            type: .nationalID,
+            vehicleID: nil,
+            expiresOn: Date(timeIntervalSince1970: 86_400),
+            filename: "national-id.jpg",
+            content: jpeg
+        )
+
+        XCTAssertEqual(upload.files.map(\.fieldName), ["front"])
+        XCTAssertEqual(try DriverDocumentUploadValidator(today: { Date(timeIntervalSince1970: 0) }).validate(upload), .jpeg)
+    }
+
+    func testNationalIDUploadAcceptsFrontAndBackFields() throws {
+        let jpeg = Data([0xFF, 0xD8, 0xFF])
+        let upload = DriverDocumentUpload(
+            type: .nationalID,
+            vehicleID: nil,
+            expiresOn: Date(timeIntervalSince1970: 86_400),
+            files: [
+                DriverDocumentUploadFile(fieldName: "front", filename: "front.jpg", content: jpeg),
+                DriverDocumentUploadFile(fieldName: "back", filename: "back.jpg", content: jpeg)
+            ]
+        )
+
+        let files = try DriverDocumentUploadValidator(today: { Date(timeIntervalSince1970: 0) }).validateFiles(upload)
+        XCTAssertEqual(files.map(\.file.fieldName), ["front", "back"])
+        XCTAssertEqual(files.map(\.kind), [.jpeg, .jpeg])
+    }
+
     private func makeProfile(status: DriverOperationalStatus, readiness: DriverReadiness) -> DriverProfileDetail {
         DriverProfileDetail(
             id: UUID(),

@@ -22,9 +22,14 @@ public struct LoadHomeSnapshotUseCase: Sendable {
         self.clock = clock
     }
 
-    public func callAsFunction() async throws -> HomeSnapshot {
+    public func callAsFunction(availabilityOverride: DriverAvailability? = nil) async throws -> HomeSnapshot {
         async let upcomingTrips = trips.upcomingTrips()
-        async let currentAvailability = availability.currentAvailability()
+        let currentAvailability: DriverAvailability
+        if let availabilityOverride {
+            currentAvailability = availabilityOverride
+        } else {
+            currentAvailability = try await availability.currentAvailability()
+        }
 
         let snapshot = try await HomeSnapshot(
             availability: currentAvailability,

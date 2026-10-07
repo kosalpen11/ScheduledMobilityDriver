@@ -11,6 +11,7 @@ import UIKit
 public enum HomeOutput: Equatable {
     case showTrip(UUID)
     case showProfile
+    case openProfile
 }
 
 @MainActor

@@ -9,15 +9,23 @@ import CoreImage
 import UIKit
 import Vision
 
-struct NationalIDVisionResult {
-    let imageData: Data
-    let previewImage: UIImage
-    let filename: String
-    let expiryDate: Date?
-    let message: String?
+public struct NationalIDVisionResult {
+    public let imageData: Data
+    public let previewImage: UIImage
+    public let filename: String
+    public let expiryDate: Date?
+    public let message: String?
+
+    public init(imageData: Data, previewImage: UIImage, filename: String, expiryDate: Date?, message: String?) {
+        self.imageData = imageData
+        self.previewImage = previewImage
+        self.filename = filename
+        self.expiryDate = expiryDate
+        self.message = message
+    }
 }
 
-enum NationalIDVisionFailure: Error, Equatable {
+public enum NationalIDVisionFailure: Error, Equatable {
     case notDetected
     case blurry
     case glare
@@ -25,7 +33,7 @@ enum NationalIDVisionFailure: Error, Equatable {
     case unreadable
     case renderFailed
 
-    var message: String {
+    public var message: String {
         switch self {
         case .notDetected:
             return "We could not find a National ID card in this photo. Place the card inside the frame and try again."
@@ -43,10 +51,10 @@ enum NationalIDVisionFailure: Error, Equatable {
     }
 }
 
-enum NationalIDVisionProcessor {
+public enum NationalIDVisionProcessor {
     private static let ciContext = CIContext(options: nil)
 
-    static func process(
+    public static func process(
         image: UIImage,
         fallbackFilename: String,
         expectedStillQuad: NationalIDQuad? = nil
@@ -79,7 +87,7 @@ enum NationalIDVisionProcessor {
             debugLog("rectangle not detected")
             throw NationalIDVisionFailure.notDetected
         }
-        debugLog("rectangle confidence=\(format(crop.confidence)) aspect=\(format(crop.aspect))")
+        debugLog("rectangle decision=\(crop.decision) confidence=\(format(crop.confidence)) aspect=\(format(crop.aspect))")
         let corrected = crop.image
         debugLog("corrected size=\(corrected.width)x\(corrected.height)")
 
@@ -211,29 +219,59 @@ enum NationalIDVisionProcessor {
 
     private static func recognizeMRZ(in image: CGImage) -> MRZOCRResult {
         let orientations: [CGImagePropertyOrientation] = [.up, .down]
+        let zones = mrzOCRZones(for: image)
         var foundMRZ = false
 
-        for orientation in orientations {
-            let result = recognizeMRZ(in: image, orientation: orientation, level: .fast)
-            if let expiry = result.expiryDate {
-                return MRZOCRResult(foundMRZ: true, expiryDate: expiry)
+        for zone in zones {
+            for orientation in orientations {
+                let result = recognizeMRZ(in: zone.image, zone: zone.name, orientation: orientation, level: .fast)
+                if let expiry = result.expiryDate {
+                    return MRZOCRResult(foundMRZ: true, expiryDate: expiry)
+                }
+                foundMRZ = foundMRZ || result.foundMRZ
             }
-            foundMRZ = foundMRZ || result.foundMRZ
         }
 
-        for orientation in orientations {
-            let result = recognizeMRZ(in: image, orientation: orientation, level: .accurate)
-            if let expiry = result.expiryDate {
-                return MRZOCRResult(foundMRZ: true, expiryDate: expiry)
+        if foundMRZ {
+            return MRZOCRResult(foundMRZ: true, expiryDate: nil)
+        }
+
+        for zone in zones {
+            for orientation in orientations {
+                let result = recognizeMRZ(in: zone.image, zone: zone.name, orientation: orientation, level: .accurate)
+                if let expiry = result.expiryDate {
+                    return MRZOCRResult(foundMRZ: true, expiryDate: expiry)
+                }
+                foundMRZ = foundMRZ || result.foundMRZ
             }
-            foundMRZ = foundMRZ || result.foundMRZ
         }
 
         return MRZOCRResult(foundMRZ: foundMRZ, expiryDate: nil)
     }
 
+    private static func mrzOCRZones(for image: CGImage) -> [(name: String, image: CGImage)] {
+        var zones: [(name: String, image: CGImage)] = []
+        let width = image.width
+        let height = image.height
+        if width > 0, height > 0 {
+            let mrzHeight = max(1, Int(CGFloat(height) * 0.48))
+            let lowerRect = CGRect(
+                x: 0,
+                y: height - mrzHeight,
+                width: width,
+                height: mrzHeight
+            )
+            if let lower = image.cropping(to: lowerRect) {
+                zones.append((name: "mrzBand", image: lower))
+            }
+        }
+        zones.append((name: "full", image: image))
+        return zones
+    }
+
     private static func recognizeMRZ(
         in image: CGImage,
+        zone: String,
         orientation: CGImagePropertyOrientation,
         level: VNRequestTextRecognitionLevel
     ) -> MRZOCRResult {
@@ -254,7 +292,7 @@ enum NationalIDVisionProcessor {
         let expiry = extractExpiryDate(from: lines)
         #if DEBUG
         debugLog(
-            "mrz zone=full " +
+            "mrz zone=\(zone) " +
             "orientation=\(orientation.rawValue) " +
             "level=\(level == .fast ? "fast" : "accurate") " +
             "found=\(foundMRZ) " +

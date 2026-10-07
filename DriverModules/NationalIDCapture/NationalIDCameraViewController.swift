@@ -9,12 +9,17 @@ import AVFoundation
 import UIKit
 import Vision
 
-struct NationalIDCapturedPhoto {
-    let image: UIImage
-    let expectedStillQuad: NationalIDQuad?
+public struct NationalIDCapturedPhoto {
+    public let image: UIImage
+    public let expectedStillQuad: NationalIDQuad?
+
+    public init(image: UIImage, expectedStillQuad: NationalIDQuad?) {
+        self.image = image
+        self.expectedStillQuad = expectedStillQuad
+    }
 }
 
-final class NationalIDCameraViewController: UIViewController {
+public final class NationalIDCameraViewController: UIViewController {
     private let onCapture: (NationalIDCapturedPhoto) -> Void
     private let onCancel: () -> Void
     private let onPhotoLibrary: () -> Void
@@ -40,6 +45,8 @@ final class NationalIDCameraViewController: UIViewController {
     private var frameLogCounter = 0
     private var captureDevice: AVCaptureDevice?
     private var lastFocusSteerDate = Date.distantPast
+    private let exposureLock = NSLock()
+    private var latestExposureTargetOffset: Float?
     private var lastVisionSampleTime: CMTime?
     private let visionInterval: Double = 0.12
     private var displayedPreviewQuad: NationalIDQuad?
@@ -54,7 +61,7 @@ final class NationalIDCameraViewController: UIViewController {
     /// Live Vision uses `.right`, so this size is height × width from the raw pixel buffer.
     private var lastStableLiveImageSize: CGSize?
 
-    init(
+    public init(
         onCapture: @escaping (NationalIDCapturedPhoto) -> Void,
         onCancel: @escaping () -> Void,
         onPhotoLibrary: @escaping () -> Void = {},
@@ -73,7 +80,7 @@ final class NationalIDCameraViewController: UIViewController {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override func viewDidLoad() {
+    public override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .black
         configurePreview()
@@ -81,7 +88,7 @@ final class NationalIDCameraViewController: UIViewController {
         configureSession()
     }
 
-    override func viewDidLayoutSubviews() {
+    public override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         previewLayer?.frame = view.bounds
         let safe = view.safeAreaLayoutGuide.layoutFrame
@@ -115,7 +122,7 @@ final class NationalIDCameraViewController: UIViewController {
         CATransaction.commit()
     }
 
-    override func viewDidAppear(_ animated: Bool) {
+    public override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         lastGuideBounds = nil
         view.setNeedsLayout()
@@ -126,7 +133,7 @@ final class NationalIDCameraViewController: UIViewController {
         }
     }
 
-    override func viewWillDisappear(_ animated: Bool) {
+    public override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         displayedPreviewQuad = nil
         scanLine.removeAllAnimations()
@@ -392,12 +399,26 @@ final class NationalIDCameraViewController: UIViewController {
                     device.exposurePointOfInterest = focusPoint
                     device.exposureMode = .continuousAutoExposure
                 }
+                let ev = device.exposureTargetOffset
                 device.unlockForConfiguration()
-                self?.debugLog("FOCUS point=\(Self.format(focusPoint))")
+                self?.setLatestExposureTargetOffset(ev)
+                self?.debugLog("FOCUS point=\(Self.format(focusPoint)) ev=\(Self.formatNumber(CGFloat(ev)))")
             } catch {
                 self?.debugLog("FOCUS failed error=\(error.localizedDescription)")
             }
         }
+    }
+
+    private func setLatestExposureTargetOffset(_ value: Float) {
+        exposureLock.lock()
+        latestExposureTargetOffset = value
+        exposureLock.unlock()
+    }
+
+    private func currentExposureTargetOffset() -> Float? {
+        exposureLock.lock()
+        defer { exposureLock.unlock() }
+        return latestExposureTargetOffset
     }
 
     private func status(for result: NIDDetectionResult, previewMetrics: NationalIDGeometryMetrics?) -> NationalIDCaptureStatus {
@@ -414,9 +435,32 @@ final class NationalIDCameraViewController: UIViewController {
     private func capturePhoto() {
         guard isCapturing == false else { return }
         isCapturing = true
-        let settings = AVCapturePhotoSettings()
-        settings.flashMode = .off
-        photoOutput.capturePhoto(with: settings, delegate: self)
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            self.lockExposureForCapture()
+            let settings = AVCapturePhotoSettings()
+            settings.flashMode = .off
+            self.photoOutput.capturePhoto(with: settings, delegate: self)
+        }
+    }
+
+    private func lockExposureForCapture() {
+        guard let device = captureDevice else { return }
+        do {
+            try device.lockForConfiguration()
+            if device.isFocusModeSupported(.locked) {
+                device.focusMode = .locked
+            }
+            if device.isExposureModeSupported(.locked) {
+                device.exposureMode = .locked
+            }
+            let ev = device.exposureTargetOffset
+            device.unlockForConfiguration()
+            setLatestExposureTargetOffset(ev)
+            debugLog("EXPOSURE locked ev=\(Self.formatNumber(CGFloat(ev)))")
+        } catch {
+            debugLog("EXPOSURE lock failed error=\(error.localizedDescription)")
+        }
     }
 
     private func isInsideCaptureGuide(_ corners: NationalIDQuad) -> Bool {
@@ -458,8 +502,9 @@ final class NationalIDCameraViewController: UIViewController {
         let previewMetricsText = previewMetrics.map {
             " previewWidth=\(Self.formatNumber($0.width)) previewHeight=\(Self.formatNumber($0.height)) isLandscapeInPreview=\($0.isLandscape) previewTopEdge=\(Self.formatNumber($0.topEdge)) previewBottomEdge=\(Self.formatNumber($0.bottomEdge)) previewLeftEdge=\(Self.formatNumber($0.leftEdge)) previewRightEdge=\(Self.formatNumber($0.rightEdge))"
         } ?? " previewWidth=0.000 previewHeight=0.000 isLandscapeInPreview=false"
+        let evText = currentExposureTargetOffset().map { Self.formatNumber(CGFloat($0)) } ?? "nil"
         print(
-            "[NID][FRAME] status=\(status.rawValue) result=\(result.status) progress=\(Self.formatNumber(result.progress)) sharp=\(Self.formatNumber(result.sharpness)) focusOK=\(result.focusOK) qualityOK=\(result.qualityOK) eligible=\(result.eligible) blocker=\(result.blocker?.rawValue ?? "none") cardPresent=\(result.cardPresent) documentConfirmed=\(result.documentConfirmed) ocrAgeMs=\(result.ocrAgeMs.map(String.init) ?? "nil") textOutside=\(result.textOutside) dark=\(result.tooDark) bright=\(result.tooBright) glare=\(result.hasGlare) blurry=\(result.blurry) cutoff=\(result.cardCutOff) missing=\(result.boundaryMissing)\(previewMetricsText) \(cornersText)\(previewText)"
+            "[NID][FRAME] status=\(status.rawValue) result=\(result.status) progress=\(Self.formatNumber(result.progress)) sharp=\(Self.formatNumber(result.sharpness)) focusOK=\(result.focusOK) qualityOK=\(result.qualityOK) eligible=\(result.eligible) blocker=\(result.blocker?.rawValue ?? "none") cardPresent=\(result.cardPresent) documentConfirmed=\(result.documentConfirmed) ocrAgeMs=\(result.ocrAgeMs.map(String.init) ?? "nil") textOutside=\(result.textOutside) dark=\(result.tooDark) bright=\(result.tooBright) glare=\(result.hasGlare) blurry=\(result.blurry) cutoff=\(result.cardCutOff) missing=\(result.boundaryMissing) ev=\(evText)\(previewMetricsText) \(cornersText)\(previewText)"
         )
         if let previewMetrics {
             print("[NID][Orientation] visionOrientation=\(visionOrientation.rawValue) videoOrientation=\(videoOrientation.rawValue) previewOrientation=\(previewLayer?.connection?.videoOrientation.rawValue ?? -1) horizontalPair=\(Self.formatNumber(previewMetrics.width)) verticalPair=\(Self.formatNumber(previewMetrics.height)) landscape=\(previewMetrics.isLandscape)")
@@ -488,7 +533,7 @@ final class NationalIDCameraViewController: UIViewController {
 }
 
 extension NationalIDCameraViewController: AVCaptureVideoDataOutputSampleBufferDelegate {
-    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+    public func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard isCapturing == false else { return }
 
         if let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
@@ -521,7 +566,7 @@ extension NationalIDCameraViewController: AVCaptureVideoDataOutputSampleBufferDe
         debugLogFrame(result: result, status: status)
         updateOverlay(corners: result.boundary, stable: status == .ready, status: status)
         if status == .ready,
-           let stableQuad = result.boundary,
+           let stableQuad = tracker.candidateReferenceQuad ?? result.boundary,
            let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
 
             lastStableLiveQuad = stableQuad
@@ -539,7 +584,7 @@ extension NationalIDCameraViewController: AVCaptureVideoDataOutputSampleBufferDe
                 "progress=\(Self.formatNumber(result.progress)) " +
                 "sharp=\(Self.formatNumber(result.sharpness)) " +
                 "liveSize=\(bufferHeight)x\(bufferWidth) " +
-                "liveQuad=stored"
+                "liveQuad=cropLock"
             )
 
             capturePhoto()
@@ -548,7 +593,7 @@ extension NationalIDCameraViewController: AVCaptureVideoDataOutputSampleBufferDe
 }
 
 extension NationalIDCameraViewController: AVCapturePhotoCaptureDelegate {
-    func photoOutput(
+    public func photoOutput(
         _ output: AVCapturePhotoOutput,
         didFinishProcessingPhoto photo: AVCapturePhoto,
         error: Error?

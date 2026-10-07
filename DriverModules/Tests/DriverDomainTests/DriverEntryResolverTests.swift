@@ -20,25 +20,14 @@ final class DriverEntryResolverTests: XCTestCase {
         XCTAssertEqual(route, .missingDriverProfile)
     }
 
-    func testRoutesStatuses() {
+    func testRoutesDriverProfilesToHomeRegardlessOfCompletionStatus() {
         let resolver = DriverEntryResolver()
-        XCTAssertEqual(resolver.resolve(session: session(isDriver: true), profile: profile(status: .pending)).route, .onboarding)
-        XCTAssertEqual(resolver.resolve(session: session(isDriver: true), profile: profile(status: .documentsSubmitted)).route, .applicationReview)
-        XCTAssertEqual(resolver.resolve(session: session(isDriver: true), profile: profile(status: .training)).route, .training)
-        XCTAssertEqual(resolver.resolve(session: session(isDriver: true), profile: profile(status: .rejected)).route, .rejected)
-        XCTAssertEqual(resolver.resolve(session: session(isDriver: true), profile: profile(status: .suspended)).route, .suspended)
-    }
-
-    func testApprovedReadinessRoutesHomeOrReadiness() {
-        let resolver = DriverEntryResolver()
+        XCTAssertEqual(resolver.resolve(session: session(isDriver: true), profile: profile(status: .pending)).route, .home)
+        XCTAssertEqual(resolver.resolve(session: session(isDriver: true), profile: profile(status: .documentsSubmitted)).route, .home)
+        XCTAssertEqual(resolver.resolve(session: session(isDriver: true), profile: profile(status: .training)).route, .home)
+        XCTAssertEqual(resolver.resolve(session: session(isDriver: true), profile: profile(status: .rejected)).route, .home)
+        XCTAssertEqual(resolver.resolve(session: session(isDriver: true), profile: profile(status: .suspended)).route, .home)
         XCTAssertEqual(resolver.resolve(session: session(isDriver: true), profile: profile(status: .approved)).route, .home)
-        XCTAssertEqual(
-            resolver.resolve(
-                session: session(isDriver: true),
-                profile: profile(status: .approved, readiness: DriverReadiness(missing: [.vehicleInsurance], pendingReview: [], expired: [], hasActiveVehicle: true))
-            ).route,
-            .readiness
-        )
     }
 
     private func session(isDriver: Bool) -> AuthenticatedSession {

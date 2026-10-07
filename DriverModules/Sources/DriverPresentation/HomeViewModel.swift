@@ -12,18 +12,24 @@ import Foundation
 @MainActor
 public final class HomeViewModel: ObservableObject {
     @Published public private(set) var state: HomeViewState
+    @Published public private(set) var profileGate: HomeProfileGate
 
     private let loadHomeSnapshot: LoadHomeSnapshotUseCase
     private let setAvailability: SetAvailabilityUseCase
+    private let loadDriverProfile: LoadDriverProfileUseCase?
+    private let eligibility = DriverEligibilityPolicy()
     private var refreshTask: Task<Void, Never>?
 
     public init(
         loadHomeSnapshot: LoadHomeSnapshotUseCase,
-        setAvailability: SetAvailabilityUseCase
+        setAvailability: SetAvailabilityUseCase,
+        loadDriverProfile: LoadDriverProfileUseCase? = nil
     ) {
         self.loadHomeSnapshot = loadHomeSnapshot
         self.setAvailability = setAvailability
+        self.loadDriverProfile = loadDriverProfile
         self.state = .initial
+        self.profileGate = .allowed
     }
 
     deinit {
@@ -37,7 +43,10 @@ public final class HomeViewModel: ObservableObject {
         refreshTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let snapshot = try await loadHomeSnapshot()
+                let gate = await loadProfileGate()
+                guard !Task.isCancelled else { return }
+                profileGate = gate
+                let snapshot = try await loadHomeSnapshot(availabilityOverride: gate.allowsAvailability ? nil : .unavailable)
                 guard !Task.isCancelled else { return }
                 state = snapshot.trips.isEmpty ? .empty(snapshot) : .content(snapshot)
             } catch {
@@ -56,6 +65,7 @@ public final class HomeViewModel: ObservableObject {
     }
 
     public func toggleAvailability() {
+        guard profileGate.allowsAvailability else { return }
         guard let current = state.contentSnapshot?.availability else { return }
         let target: DriverAvailability = current == .available ? .unavailable : .available
         let priorState = state
@@ -71,6 +81,85 @@ public final class HomeViewModel: ObservableObject {
                     .refreshFailed($0, message: Self.message(for: error))
                 } ?? priorState
             }
+        }
+    }
+
+    private func loadProfileGate() async -> HomeProfileGate {
+        guard let loadDriverProfile else {
+            return .allowed
+        }
+        do {
+            let profile = try await loadDriverProfile()
+            guard eligibility.canOperate(profile) else {
+                return .blocked(
+                    title: title(for: profile),
+                    detail: detail(for: profile),
+                    actionTitle: "Complete profile"
+                )
+            }
+            return .allowed
+        } catch {
+            return .blocked(
+                title: "Profile check needed",
+                detail: Self.message(for: error),
+                actionTitle: "Open profile"
+            )
+        }
+    }
+
+    private func title(for profile: DriverProfileDetail) -> String {
+        switch profile.status {
+        case .pending:
+            return "Complete driver profile"
+        case .documentsSubmitted:
+            return "Documents under review"
+        case .training:
+            return "Training required"
+        case .approved:
+            return "Driver requirements pending"
+        case .rejected:
+            return "Profile needs attention"
+        case .suspended:
+            return "Account restricted"
+        case .unknown:
+            return "Profile check needed"
+        }
+    }
+
+    private func detail(for profile: DriverProfileDetail) -> String {
+        switch profile.status {
+        case .pending:
+            if let missing = profile.readiness.missing.first {
+                return "\(missing.displayTitle) is required before you can go available."
+            }
+            if profile.readiness.pendingReview.isEmpty == false {
+                return "Your uploaded documents need review before you can go available."
+            }
+            return "Submit your driver documents before going available."
+        case .documentsSubmitted:
+            return "Your documents are with the operations team. Availability is disabled until approval is complete."
+        case .training:
+            return "Complete training before going available."
+        case .approved:
+            if profile.readiness.hasActiveVehicle == false {
+                return "An active vehicle assignment is required before you can go available."
+            }
+            if let expired = profile.readiness.expired.first {
+                return "\(expired.displayTitle) has expired. Replace it before going available."
+            }
+            if let pending = profile.readiness.pendingReview.first {
+                return "\(pending.displayTitle) is still under review."
+            }
+            if let missing = profile.readiness.missing.first {
+                return "\(missing.displayTitle) is required before you can go available."
+            }
+            return "Review your profile requirements before going available."
+        case .rejected:
+            return "Your driver profile needs attention before availability can be enabled."
+        case .suspended:
+            return "Driver availability is disabled while the account is restricted."
+        case .unknown:
+            return "Open your profile to check driver requirements."
         }
     }
 
@@ -96,6 +185,36 @@ public final class HomeViewModel: ObservableObject {
             return message
         }
         return "Could not reach the driver service. Pull to try again."
+    }
+}
+
+public enum HomeProfileGate: Equatable {
+    case allowed
+    case blocked(title: String, detail: String, actionTitle: String)
+
+    public var allowsAvailability: Bool {
+        self == .allowed
+    }
+
+    public var prompt: HomeProfilePrompt? {
+        switch self {
+        case .allowed:
+            return nil
+        case .blocked(let title, let detail, let actionTitle):
+            return HomeProfilePrompt(title: title, detail: detail, actionTitle: actionTitle)
+        }
+    }
+}
+
+public struct HomeProfilePrompt: Equatable {
+    public let title: String
+    public let detail: String
+    public let actionTitle: String
+
+    public init(title: String, detail: String, actionTitle: String) {
+        self.title = title
+        self.detail = detail
+        self.actionTitle = actionTitle
     }
 }
 

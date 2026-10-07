@@ -56,16 +56,18 @@ public final class DriverProfileAPIRepository: DriverProfileRepository, @uncheck
 
     public func uploadDocument(_ upload: DriverDocumentUpload) async throws -> DriverDocument {
         do {
-            let kind = try validator.validate(upload)
+            let files = try validator.validateFiles(upload)
             var parts: [MultipartFormPart] = [
-                MultipartFormPart(name: "type", data: Data(upload.type.rawValue.utf8)),
-                MultipartFormPart(
-                    name: "file",
-                    filename: upload.filename,
-                    contentType: kind.contentType,
-                    data: upload.content
-                )
+                MultipartFormPart(name: "type", data: Data(upload.type.rawValue.utf8))
             ]
+            parts.append(contentsOf: files.map { validated in
+                MultipartFormPart(
+                    name: validated.file.fieldName,
+                    filename: validated.file.filename,
+                    contentType: validated.kind.contentType,
+                    data: validated.file.content
+                )
+            })
             if let vehicleID = upload.vehicleID {
                 parts.append(MultipartFormPart(name: "vehicleId", data: Data(vehicleID.uuidString.utf8)))
             }

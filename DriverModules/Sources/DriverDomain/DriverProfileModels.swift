@@ -46,6 +46,10 @@ public enum DriverDocumentType: String, Equatable, Sendable, CaseIterable {
     public var isVehicleDocument: Bool {
         self == .vehicleRegistration || self == .vehicleInsurance
     }
+
+    public var defaultUploadFieldName: String {
+        self == .nationalID ? "front" : "file"
+    }
 }
 
 public enum DriverDocumentStatus: String, Equatable, Sendable {
@@ -242,8 +246,15 @@ public struct DriverDocumentUpload: Equatable, Sendable {
     public let type: DriverDocumentType
     public let vehicleID: UUID?
     public let expiresOn: Date?
-    public let filename: String
-    public let content: Data
+    public let files: [DriverDocumentUploadFile]
+
+    public var filename: String {
+        files.first?.filename ?? ""
+    }
+
+    public var content: Data {
+        files.first?.content ?? Data()
+    }
 
     public init(
         type: DriverDocumentType,
@@ -252,9 +263,40 @@ public struct DriverDocumentUpload: Equatable, Sendable {
         filename: String,
         content: Data
     ) {
+        self.init(
+            type: type,
+            vehicleID: vehicleID,
+            expiresOn: expiresOn,
+            files: [
+                DriverDocumentUploadFile(
+                    fieldName: type.defaultUploadFieldName,
+                    filename: filename,
+                    content: content
+                )
+            ]
+        )
+    }
+
+    public init(
+        type: DriverDocumentType,
+        vehicleID: UUID?,
+        expiresOn: Date?,
+        files: [DriverDocumentUploadFile]
+    ) {
         self.type = type
         self.vehicleID = vehicleID
         self.expiresOn = expiresOn
+        self.files = files
+    }
+}
+
+public struct DriverDocumentUploadFile: Equatable, Sendable {
+    public let fieldName: String
+    public let filename: String
+    public let content: Data
+
+    public init(fieldName: String, filename: String, content: Data) {
+        self.fieldName = fieldName
         self.filename = filename
         self.content = content
     }
@@ -308,17 +350,41 @@ public struct DriverDocumentUploadValidator: Sendable {
     }
 
     public func validate(_ upload: DriverDocumentUpload) throws -> DriverUploadFileKind {
-        guard upload.content.isEmpty == false else {
+        guard let first = try validateFiles(upload).first else {
             throw DriverProfileFailure.validation("Choose a file before uploading.")
         }
-        guard upload.content.count <= 10 * 1024 * 1024 else {
-            throw DriverProfileFailure.validation("Documents must be 10 MB or smaller.")
+        return first.kind
+    }
+
+    public func validateFiles(_ upload: DriverDocumentUpload) throws -> [DriverValidatedUploadFile] {
+        guard upload.files.isEmpty == false else {
+            throw DriverProfileFailure.validation("Choose a file before uploading.")
         }
-        guard let kind = Self.detectFileKind(upload.content) else {
-            throw DriverProfileFailure.validation("Upload a JPEG, PNG, or PDF file.")
+
+        let files = try upload.files.map { file in
+            guard file.fieldName.isEmpty == false, file.content.isEmpty == false else {
+                throw DriverProfileFailure.validation("Choose a file before uploading.")
+            }
+            guard file.content.count <= 10 * 1024 * 1024 else {
+                throw DriverProfileFailure.validation("Documents must be 10 MB or smaller.")
+            }
+            guard let kind = Self.detectFileKind(file.content) else {
+                throw DriverProfileFailure.validation("Upload a JPEG, PNG, or PDF file.")
+            }
+            if upload.type == .profilePhoto && kind == .pdf {
+                throw DriverProfileFailure.validation("Profile photo must be a JPEG or PNG image.")
+            }
+            return DriverValidatedUploadFile(file: file, kind: kind)
         }
-        if upload.type == .profilePhoto && kind == .pdf {
-            throw DriverProfileFailure.validation("Profile photo must be a JPEG or PNG image.")
+
+        if upload.type == .nationalID {
+            let fieldNames = Set(files.map(\.file.fieldName))
+            guard fieldNames.isSubset(of: ["front", "back"]) else {
+                throw DriverProfileFailure.validation("National ID files must be submitted as front or back images.")
+            }
+            guard fieldNames.contains("front") else {
+                throw DriverProfileFailure.validation("Upload the front side of the National ID.")
+            }
         }
         if upload.type.requiresExpiry {
             guard let expiresOn = upload.expiresOn else {
@@ -335,7 +401,7 @@ public struct DriverDocumentUploadValidator: Sendable {
         } else if upload.vehicleID != nil {
             throw DriverProfileFailure.validation("This document is not linked to a vehicle.")
         }
-        return kind
+        return files
     }
 
     public static func detectFileKind(_ data: Data) -> DriverUploadFileKind? {
@@ -352,5 +418,15 @@ public struct DriverDocumentUploadValidator: Sendable {
             return .pdf
         }
         return nil
+    }
+}
+
+public struct DriverValidatedUploadFile: Equatable, Sendable {
+    public let file: DriverDocumentUploadFile
+    public let kind: DriverUploadFileKind
+
+    public init(file: DriverDocumentUploadFile, kind: DriverUploadFileKind) {
+        self.file = file
+        self.kind = kind
     }
 }

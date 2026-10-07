@@ -42,21 +42,22 @@ public actor MockDriverProfileRepository: DriverProfileRepository {
     }
 
     public func uploadDocument(_ upload: DriverDocumentUpload) async throws -> DriverDocument {
-        let key = "\(upload.type.rawValue)-\(upload.filename)-\(upload.content.count)"
+        let uploadSize = upload.files.reduce(0) { $0 + $1.content.count }
+        let key = "\(upload.type.rawValue)-\(upload.filename)-\(uploadSize)"
         guard uploadIDs.contains(key) == false else {
             throw DriverProfileFailure.conflict("This upload is already in progress.")
         }
         uploadIDs.insert(key)
         defer { uploadIDs.remove(key) }
 
-        let kind = try DriverDocumentUploadValidator().validate(upload)
+        let files = try DriverDocumentUploadValidator().validateFiles(upload)
         let document = DriverDocument(
             id: UUID(),
             type: upload.type,
             vehicleID: upload.vehicleID,
             status: .pendingReview,
-            contentType: kind.contentType,
-            sizeBytes: upload.content.count,
+            contentType: files.first?.kind.contentType ?? "application/octet-stream",
+            sizeBytes: uploadSize,
             expiresOn: upload.expiresOn.map(Self.formatDate),
             uploadedAt: ISO8601DateFormatter().string(from: Date()),
             reviewedAt: nil,

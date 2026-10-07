@@ -22,6 +22,7 @@ let package = Package(
         .library(name: "FeatureContracts", targets: ["FeatureContracts"]),
         .library(name: "DriverPresentation", targets: ["DriverPresentation"]),
         .library(name: "DesignSystem", targets: ["DesignSystem"]),
+        .library(name: "NationalIDCapture", targets: ["NationalIDCapture"]),
         .library(name: "DriverUIKit", targets: ["DriverUIKit"]),
         .library(name: "DriverSwiftUI", targets: ["DriverSwiftUI"])
     ],
@@ -48,11 +49,16 @@ let package = Package(
         ),
         .target(name: "DesignSystem"),
         .target(
+            name: "NationalIDCapture",
+            path: "NationalIDCapture"
+        ),
+        .target(
             name: "DriverUIKit",
             dependencies: [
                 "DesignSystem",
                 "DriverPresentation",
                 "FeatureContracts",
+                "NationalIDCapture",
                 .product(name: "FloatingPanel", package: "FloatingPanel")
             ]
         ),
@@ -79,7 +85,7 @@ let package = Package(
         ),
         .testTarget(
             name: "DriverUIKitTests",
-            dependencies: ["DriverUIKit"]
+            dependencies: ["DriverUIKit", "NationalIDCapture"]
         )
     ]
 )

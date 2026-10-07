@@ -80,7 +80,8 @@ final class CompositionRoot {
 
         return HomeSwiftUIScreenFactory(
             loadHomeSnapshot: loadHomeSnapshot,
-            setAvailability: setAvailability
+            setAvailability: setAvailability,
+            loadDriverProfile: LoadDriverProfileUseCase(repository: driverProfileRepository)
         )
     }
 

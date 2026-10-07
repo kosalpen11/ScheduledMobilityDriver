@@ -110,8 +110,9 @@ struct DriverDocumentDTO: Decodable {
     let type: String
     let vehicleId: UUID?
     let status: String
-    let contentType: String
-    let sizeBytes: Int
+    let contentType: String?
+    let sizeBytes: Int?
+    let files: [DriverDocumentFileDTO]?
     let expiresOn: String?
     let uploadedAt: String?
     let reviewedAt: String?
@@ -119,13 +120,14 @@ struct DriverDocumentDTO: Decodable {
     let expiryFlaggedAt: String?
 
     func domain() -> DriverDocument {
-        DriverDocument(
+        let primaryFile = files?.first
+        return DriverDocument(
             id: id,
             type: DriverDocumentType(rawValue: type) ?? .profilePhoto,
             vehicleID: vehicleId,
             status: DriverDocumentStatus(rawValue: status) ?? .unknown,
-            contentType: contentType,
-            sizeBytes: sizeBytes,
+            contentType: contentType ?? primaryFile?.contentType ?? "application/octet-stream",
+            sizeBytes: sizeBytes ?? primaryFile?.sizeBytes ?? 0,
             expiresOn: expiresOn,
             uploadedAt: uploadedAt,
             reviewedAt: reviewedAt,
@@ -133,6 +135,12 @@ struct DriverDocumentDTO: Decodable {
             expiryFlaggedAt: expiryFlaggedAt
         )
     }
+}
+
+struct DriverDocumentFileDTO: Decodable {
+    let contentType: String?
+    let side: String?
+    let sizeBytes: Int?
 }
 
 enum DriverProfileErrorMapper {

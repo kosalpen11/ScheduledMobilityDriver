@@ -35,6 +35,7 @@ final class HomeViewController: UIViewController {
     private let nextTripRouteLabel = UILabel()
     private let nextTripRoleLabel = UILabel()
     private let availabilityButton = UIButton(type: .system)
+    private let profileShortcutButton = UIButton(type: .system)
     private let retryButton = UIButton(type: .system)
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let messageLabel = UILabel()
@@ -136,7 +137,7 @@ final class HomeViewController: UIViewController {
 
         configureNextTripCard()
 
-        let stack = UIStackView(arrangedSubviews: [topRow, nextTripHeadingLabel, nextTripCard, assignmentsHeadingLabel, messageLabel, retryButton, tableView])
+        let stack = UIStackView(arrangedSubviews: [topRow, nextTripHeadingLabel, nextTripCard, assignmentsHeadingLabel, messageLabel, profileShortcutButton, retryButton, tableView])
         stack.axis = .vertical
         stack.spacing = 14
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -170,6 +171,20 @@ final class HomeViewController: UIViewController {
         availabilityButton.addTarget(self, action: #selector(toggleAvailability), for: .touchUpInside)
         availabilityButton.accessibilityHint = "Changes whether you can receive scheduled mobility work."
 
+        profileShortcutButton.configuration = .borderedProminent()
+        profileShortcutButton.configuration?.image = UIImage(systemName: "person.text.rectangle")
+        profileShortcutButton.configuration?.imagePadding = 8
+        profileShortcutButton.configuration?.baseBackgroundColor = DriverTheme.accentColor
+        profileShortcutButton.configuration?.baseForegroundColor = .white
+        profileShortcutButton.configuration?.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 14, bottom: 10, trailing: 14)
+        profileShortcutButton.addTarget(self, action: #selector(openProfileShortcut), for: .touchUpInside)
+        profileShortcutButton.titleLabel?.adjustsFontForContentSizeCategory = true
+        profileShortcutButton.titleLabel?.lineBreakMode = .byClipping
+        profileShortcutButton.titleLabel?.minimumScaleFactor = 0.85
+        profileShortcutButton.titleLabel?.adjustsFontSizeToFitWidth = true
+        profileShortcutButton.accessibilityHint = "Opens your driver profile requirements."
+        profileShortcutButton.isHidden = true
+
         messageLabel.font = .preferredFont(forTextStyle: .subheadline)
         messageLabel.adjustsFontForContentSizeCategory = true
         messageLabel.textColor = .secondaryLabel
@@ -200,6 +215,7 @@ final class HomeViewController: UIViewController {
             stack.bottomAnchor.constraint(equalTo: panelView.bottomAnchor, constant: -DriverTheme.innerMargin),
             availabilityButton.heightAnchor.constraint(greaterThanOrEqualToConstant: DriverTheme.controlHeight),
             availabilityButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 150),
+            profileShortcutButton.heightAnchor.constraint(greaterThanOrEqualToConstant: DriverTheme.controlHeight),
             retryButton.heightAnchor.constraint(greaterThanOrEqualToConstant: DriverTheme.controlHeight),
             tableView.heightAnchor.constraint(greaterThanOrEqualToConstant: 140)
         ])
@@ -254,22 +270,23 @@ final class HomeViewController: UIViewController {
 
     private func bind() {
         model.$state
+            .combineLatest(model.$profileGate)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] state in
-                self?.render(state)
+            .sink { [weak self] state, gate in
+                self?.render(state, profileGate: gate)
             }
             .store(in: &cancellables)
     }
 
-    private func render(_ state: HomeViewState) {
+    private func render(_ state: HomeViewState, profileGate: HomeProfileGate) {
         if let snapshot = state.contentSnapshot {
             visibleTrips = snapshot.trips
             let isAvailable = snapshot.availability == .available
-            statusLabel.text = HomePresentationFormatting.title(for: snapshot.availability)
-            statusLabel.textColor = DriverTheme.statusColor(isAvailable: isAvailable)
+            statusLabel.text = profileGate.prompt?.title ?? HomePresentationFormatting.title(for: snapshot.availability)
+            statusLabel.textColor = profileGate.allowsAvailability ? DriverTheme.statusColor(isAvailable: isAvailable) : DriverTheme.accentColor
             availabilityButton.configuration?.title = isAvailable ? "Go unavailable" : "Go available"
             availabilityButton.configuration?.baseBackgroundColor = isAvailable ? DriverTheme.destructiveColor : DriverTheme.brandColor
-            messageLabel.text = message(for: state, snapshot: snapshot)
+            messageLabel.text = message(for: state, snapshot: snapshot, profileGate: profileGate)
             renderNextTrip(snapshot.nextTrip)
             renderAnnotations(for: snapshot.trips)
         } else {
@@ -278,12 +295,15 @@ final class HomeViewController: UIViewController {
             statusLabel.textColor = .label
             availabilityButton.configuration?.title = "Availability"
             availabilityButton.configuration?.baseBackgroundColor = DriverTheme.brandColor
-            messageLabel.text = message(for: state, snapshot: nil)
+            messageLabel.text = message(for: state, snapshot: nil, profileGate: profileGate)
             renderNextTrip(nil)
         }
 
-        availabilityButton.isEnabled = !state.isBusy && state.contentSnapshot != nil
+        availabilityButton.isEnabled = !state.isBusy && state.contentSnapshot != nil && profileGate.allowsAvailability
         availabilityButton.alpha = availabilityButton.isEnabled ? 1 : 0.55
+        profileShortcutButton.isHidden = profileGate.prompt == nil
+        profileShortcutButton.configuration?.title = profileGate.prompt?.actionTitle
+        profileShortcutButton.isEnabled = !state.isBusy
         retryButton.isHidden = !isRefreshFailure(state)
         retryButton.isEnabled = !state.isBusy
         navigationItem.leftBarButtonItem?.isEnabled = !state.isBusy
@@ -318,7 +338,10 @@ final class HomeViewController: UIViewController {
         nextTripCard.accessibilityLabel = "Next scheduled pickup at \(time), \(role), from \(trip.pickupName) to \(trip.dropoffName)."
     }
 
-    private func message(for state: HomeViewState, snapshot: HomeSnapshot?) -> String {
+    private func message(for state: HomeViewState, snapshot: HomeSnapshot?, profileGate: HomeProfileGate) -> String {
+        if let prompt = profileGate.prompt {
+            return prompt.detail
+        }
         switch state {
         case .initial, .loading:
             return "Checking assignments..."
@@ -351,6 +374,10 @@ final class HomeViewController: UIViewController {
     @objc private func toggleAvailability() {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         model.toggleAvailability()
+    }
+
+    @objc private func openProfileShortcut() {
+        onOutput(.openProfile)
     }
 
     @objc private func showProfile() {

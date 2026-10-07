@@ -76,34 +76,52 @@ struct HomeView: View {
     private var header: some View {
         let snapshot = model.state.contentSnapshot
         let isAvailable = snapshot?.availability == .available
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Driver availability")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text(snapshot.map { HomePresentationFormatting.title(for: $0.availability) } ?? "Loading")
-                    .font(.title3.weight(.bold))
-                    .foregroundColor(snapshot == nil ? .primary : Color(DriverTheme.statusColor(isAvailable: isAvailable)))
-                Text(message)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
+        let prompt = model.profileGate.prompt
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Driver availability")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(prompt?.title ?? snapshot.map { HomePresentationFormatting.title(for: $0.availability) } ?? "Loading")
+                        .font(.title3.weight(.bold))
+                        .foregroundColor(prompt == nil ? (snapshot == nil ? .primary : Color(DriverTheme.statusColor(isAvailable: isAvailable))) : Color(DriverTheme.accentColor))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 12)
+
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    model.toggleAvailability()
+                } label: {
+                    Label(isAvailable ? "Go unavailable" : "Go available", systemImage: "power")
+                        .font(.headline)
+                        .frame(minWidth: 150, minHeight: DriverTheme.controlHeight)
+                }
+                .buttonStyle(AvailabilityButtonStyle(isAvailable: isAvailable))
+                .disabled(model.state.isBusy || snapshot == nil || model.profileGate.allowsAvailability == false)
+                .opacity(model.state.isBusy || snapshot == nil || model.profileGate.allowsAvailability == false ? 0.55 : 1)
+                .accessibilityHint("Changes whether you can receive scheduled mobility work.")
             }
 
-            Spacer(minLength: 12)
+            Text(message)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
-            Button {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                model.toggleAvailability()
-            } label: {
-                Label(isAvailable ? "Go unavailable" : "Go available", systemImage: "power")
-                    .font(.headline)
-                    .frame(minWidth: 150, minHeight: DriverTheme.controlHeight)
+            if let prompt {
+                Button {
+                    onOutput(.openProfile)
+                } label: {
+                    Label(prompt.actionTitle, systemImage: "person.text.rectangle")
+                        .font(.headline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .frame(maxWidth: .infinity, minHeight: DriverTheme.controlHeight)
+                }
+                .buttonStyle(AvailabilityButtonStyle(isAvailable: false))
             }
-            .buttonStyle(AvailabilityButtonStyle(isAvailable: isAvailable))
-            .disabled(model.state.isBusy || snapshot == nil)
-            .opacity(model.state.isBusy || snapshot == nil ? 0.55 : 1)
-            .accessibilityHint("Changes whether you can receive scheduled mobility work.")
         }
     }
 
@@ -207,6 +225,9 @@ struct HomeView: View {
     }
 
     private var message: String {
+        if let prompt = model.profileGate.prompt {
+            return prompt.detail
+        }
         switch model.state {
         case .initial, .loading:
             return "Checking assignments..."

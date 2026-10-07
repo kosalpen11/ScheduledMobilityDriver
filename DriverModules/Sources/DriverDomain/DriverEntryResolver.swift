@@ -30,8 +30,6 @@ public struct DriverEntryResolution: Equatable, Sendable {
 }
 
 public struct DriverEntryResolver: Sendable {
-    private let eligibility = DriverEligibilityPolicy()
-
     public init() {}
 
     public func resolve(session: AuthenticatedSession, profile: DriverProfileDetail?) -> DriverEntryResolution {
@@ -43,21 +41,6 @@ public struct DriverEntryResolver: Sendable {
             return DriverEntryResolution(route: .missingDriverProfile, profile: nil)
         }
 
-        switch profile.status {
-        case .pending:
-            return DriverEntryResolution(route: .onboarding, profile: profile)
-        case .documentsSubmitted:
-            return DriverEntryResolution(route: .applicationReview, profile: profile)
-        case .training:
-            return DriverEntryResolution(route: .training, profile: profile)
-        case .rejected:
-            return DriverEntryResolution(route: .rejected, profile: profile)
-        case .suspended:
-            return DriverEntryResolution(route: .suspended, profile: profile)
-        case .approved:
-            return DriverEntryResolution(route: eligibility.canOperate(profile) ? .home : .readiness, profile: profile)
-        case .unknown:
-            return DriverEntryResolution(route: .readiness, profile: profile)
-        }
+        return DriverEntryResolution(route: .home, profile: profile)
     }
 }

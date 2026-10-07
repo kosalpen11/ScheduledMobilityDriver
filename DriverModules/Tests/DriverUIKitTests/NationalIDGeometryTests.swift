@@ -5,10 +5,11 @@
 //  Created by Kosal Pen on 10/5/26.
 //
 
-@testable import DriverUIKit
+@testable import NationalIDCapture
 import AVFoundation
 import CoreGraphics
 import ImageIO
+import UIKit
 import XCTest
 
 final class NationalIDGeometryTests: XCTestCase {
@@ -287,6 +288,23 @@ final class NationalIDGeometryTests: XCTestCase {
         let metrics = NationalIDGeometry.metrics(for: quad!)
         XCTAssertGreaterThan(metrics.topEdge, metrics.leftEdge)
         XCTAssertTrue(metrics.isLandscape)
+    }
+
+    func testProcessorQuadReordersDownOrientedExpectedQuadForCoreImageCoordinates() {
+        let expectedStillQuad = NationalIDQuad(
+            topLeft: CGPoint(x: 0.25, y: 0.63),
+            topRight: CGPoint(x: 0.75, y: 0.62),
+            bottomRight: CGPoint(x: 0.76, y: 0.38),
+            bottomLeft: CGPoint(x: 0.25, y: 0.40)
+        )
+
+        let processorQuad = NationalIDCropper.processorQuad(expectedStillQuad, from: .down)
+
+        XCTAssertGreaterThan(processorQuad.topLeft.y, processorQuad.bottomLeft.y)
+        XCTAssertGreaterThan(processorQuad.topRight.y, processorQuad.bottomRight.y)
+        XCTAssertLessThan(processorQuad.topLeft.x, processorQuad.topRight.x)
+        XCTAssertLessThan(processorQuad.bottomLeft.x, processorQuad.bottomRight.x)
+        XCTAssertTrue(NationalIDGeometry.metrics(for: processorQuad).isLandscape)
     }
 
     private func normalizedQuad(
