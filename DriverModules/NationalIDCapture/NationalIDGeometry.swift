@@ -379,6 +379,7 @@ struct NationalIDGeometryMetrics: Equatable {
 enum NationalIDGeometry {
     static let targetAspect: CGFloat = 0.631
     static let aspectTolerance: CGFloat = 0.20
+    static let acceptedAspectRange: ClosedRange<CGFloat> = 0.52...0.74
 
     static func scaled(_ quad: NationalIDQuad, to imageSize: CGSize) -> NationalIDQuad {
         NationalIDQuad(

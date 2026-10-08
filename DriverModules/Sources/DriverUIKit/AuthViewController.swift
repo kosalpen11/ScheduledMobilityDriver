@@ -17,6 +17,7 @@ final class AuthViewController: UIViewController {
     private let onOutput: (AuthOutput) -> Void
     private var cancellables = Set<AnyCancellable>()
     private var currentChallenge: OTPChallenge?
+    private var resendTimer: Timer?
 
     private let titleLabel = UILabel()
     private let subtitleLabel = UILabel()
@@ -24,7 +25,6 @@ final class AuthViewController: UIViewController {
     private let primaryButton = UIButton(type: .system)
     private let secondaryButton = UIButton(type: .system)
     private let errorLabel = UILabel()
-    private let activity = UIActivityIndicatorView(style: .medium)
 
     init(model: AuthViewModel, onOutput: @escaping (AuthOutput) -> Void) {
         self.model = model
@@ -43,6 +43,10 @@ final class AuthViewController: UIViewController {
         view.backgroundColor = .systemBackground
         configureLayout()
         bind()
+    }
+
+    deinit {
+        stopResendTimer()
     }
 
     private func configureLayout() {
@@ -75,16 +79,11 @@ final class AuthViewController: UIViewController {
         errorLabel.textColor = .systemRed
         errorLabel.numberOfLines = 0
 
-        let buttonRow = UIStackView(arrangedSubviews: [primaryButton, activity])
-        buttonRow.axis = .horizontal
-        buttonRow.spacing = 12
-        buttonRow.alignment = .center
-
         let stack = UIStackView(arrangedSubviews: [
             titleLabel,
             subtitleLabel,
             textField,
-            buttonRow,
+            primaryButton,
             secondaryButton,
             errorLabel
         ])
@@ -96,8 +95,7 @@ final class AuthViewController: UIViewController {
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -24),
-            stack.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor),
-            activity.widthAnchor.constraint(equalToConstant: 24)
+            stack.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor)
         ])
     }
 
@@ -114,6 +112,7 @@ final class AuthViewController: UIViewController {
         switch state {
         case .phone(let phone):
             currentChallenge = nil
+            stopResendTimer()
             titleLabel.text = "Driver sign in"
             subtitleLabel.text = "Use your Cambodia phone number. We will send a secure one-time code."
             textField.textContentType = .telephoneNumber
@@ -129,13 +128,17 @@ final class AuthViewController: UIViewController {
             setSubmitting(phone.isSubmitting)
 
         case .code(let code):
+            let previousChallenge = currentChallenge
             currentChallenge = code.challenge
+            updateResendTimer(for: code)
             titleLabel.text = "Enter code"
             subtitleLabel.text = "We sent a \(code.challenge.codeLength)-digit code to \(code.challenge.phone)."
             textField.textContentType = .oneTimeCode
             textField.keyboardType = .numberPad
             textField.placeholder = String(repeating: "0", count: code.challenge.codeLength)
-            if textField.text != code.code {
+            if code.code.isEmpty, previousChallenge != code.challenge {
+                textField.text = ""
+            } else if code.code.isEmpty == false, textField.text != code.code {
                 textField.text = code.code
             }
             primaryButton.configuration?.title = "Verify"
@@ -146,15 +149,50 @@ final class AuthViewController: UIViewController {
             setSubmitting(code.isSubmitting)
 
         case .authenticated:
+            stopResendTimer()
             setSubmitting(false)
         }
     }
 
+    private func updateResendTimer(for code: AuthCodeState) {
+        if code.canResend || code.isSubmitting {
+            stopResendTimer()
+            return
+        }
+        guard resendTimer == nil else { return }
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            guard case .code(let current) = self.model.state else {
+                self.stopResendTimer()
+                return
+            }
+            if current.canResend {
+                self.stopResendTimer()
+            }
+            self.render(self.model.state)
+        }
+        resendTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func stopResendTimer() {
+        resendTimer?.invalidate()
+        resendTimer = nil
+    }
+
     private func setSubmitting(_ isSubmitting: Bool) {
-        primaryButton.isEnabled = !isSubmitting
+        let title: String
+        switch model.state {
+        case .phone:
+            title = "Continue"
+        case .code:
+            title = "Verify"
+        case .authenticated:
+            title = "Continue"
+        }
+        primaryButton.setDriverLoading(isSubmitting, title: title)
         textField.isEnabled = !isSubmitting
         secondaryButton.isEnabled = !isSubmitting
-        isSubmitting ? activity.startAnimating() : activity.stopAnimating()
     }
 
     @objc private func primaryTapped() {

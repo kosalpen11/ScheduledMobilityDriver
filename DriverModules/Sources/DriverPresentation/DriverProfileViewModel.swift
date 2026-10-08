@@ -20,28 +20,38 @@ public final class DriverProfileViewModel: ObservableObject {
     @Published public private(set) var state: State = .idle
     @Published public private(set) var isSubmitting = false
     @Published public private(set) var isUploading = false
+    @Published public private(set) var isRefreshing = false
+    @Published public private(set) var uploadProgress: Double?
     @Published public private(set) var message: String?
 
     private let loadProfile: LoadDriverProfileUseCase
+    private let loadDocuments: LoadDriverDocumentsUseCase
     private let uploadDocument: UploadDriverDocumentUseCase
     private let submitOnboarding: SubmitDriverOnboardingUseCase
     private let eligibility = DriverEligibilityPolicy()
     private var profile: DriverProfileDetail?
+    private var stagedUploads: [DriverDocumentType: DriverDocumentUpload] = [:]
 
     public init(
         loadProfile: LoadDriverProfileUseCase,
+        loadDocuments: LoadDriverDocumentsUseCase,
         uploadDocument: UploadDriverDocumentUseCase,
         submitOnboarding: SubmitDriverOnboardingUseCase
     ) {
         self.loadProfile = loadProfile
+        self.loadDocuments = loadDocuments
         self.uploadDocument = uploadDocument
         self.submitOnboarding = submitOnboarding
     }
 
     public func load() async {
-        state = .loading
+        if profile == nil {
+            state = .loading
+        }
+        isRefreshing = true
+        defer { isRefreshing = false }
         do {
-            let profile = try await loadProfile()
+            let profile = try await loadProfileWithDocuments()
             apply(profile: profile)
         } catch {
             let message = Self.message(for: error)
@@ -55,20 +65,45 @@ public final class DriverProfileViewModel: ObservableObject {
     }
 
     public func submit() async {
-        guard isSubmitting == false else { return }
+        guard isSubmitting == false, isUploading == false else { return }
         guard let profile else { return }
-        guard eligibility.canSubmitOnboarding(profile) else {
+        guard canSubmitOnboarding(profile) else {
             message = "Upload the required documents before submitting."
             return
         }
 
         isSubmitting = true
-        defer { isSubmitting = false }
+        isUploading = stagedUploads.isEmpty == false
+        uploadProgress = nil
+        defer {
+            isSubmitting = false
+            isUploading = false
+            uploadProgress = nil
+        }
 
         do {
+            let uploads = Array(stagedUploads.values)
+            if uploads.isEmpty == false {
+                try await uploadAll(uploads)
+            }
             let updated = try await submitOnboarding()
+            let documents = try await loadDocuments()
+            stagedUploads.removeAll()
             message = "Documents submitted for review."
-            apply(profile: updated)
+            apply(profile: updated.replacingDocuments(documents))
+        } catch {
+            message = Self.message(for: error)
+        }
+    }
+
+    public func stage(_ upload: DriverDocumentUpload) {
+        do {
+            try uploadDocument.validate(upload)
+            stagedUploads[upload.type] = upload
+            message = "\(upload.type.displayTitle) is ready. Submit when all required documents are ready."
+            if let profile {
+                apply(profile: profile)
+            }
         } catch {
             message = Self.message(for: error)
         }
@@ -77,11 +112,19 @@ public final class DriverProfileViewModel: ObservableObject {
     public func upload(_ upload: DriverDocumentUpload) async {
         guard isUploading == false else { return }
         isUploading = true
-        defer { isUploading = false }
+        uploadProgress = nil
+        defer {
+            isUploading = false
+            uploadProgress = nil
+        }
 
         do {
-            _ = try await uploadDocument(upload)
-            let updated = try await loadProfile()
+            _ = try await uploadDocument(upload) { [weak self] progress in
+                Task { @MainActor in
+                    self?.uploadProgress = min(max(progress, 0), 1)
+                }
+            }
+            let updated = try await loadProfileWithDocuments()
             message = "Document uploaded."
             apply(profile: updated)
         } catch {
@@ -95,7 +138,46 @@ public final class DriverProfileViewModel: ObservableObject {
 
     private func apply(profile: DriverProfileDetail) {
         self.profile = profile
-        state = .loaded(DriverProfileSummary(profile: profile, canOperate: eligibility.canOperate(profile), canSubmit: eligibility.canSubmitOnboarding(profile)))
+        state = .loaded(DriverProfileSummary(
+            profile: profile,
+            stagedTypes: Set(stagedUploads.keys),
+            canOperate: eligibility.canOperate(profile),
+            canSubmit: canSubmitOnboarding(profile)
+        ))
+    }
+
+    private func loadProfileWithDocuments() async throws -> DriverProfileDetail {
+        let profile = try await loadProfile()
+        let documents = try await loadDocuments()
+        return profile.replacingDocuments(documents)
+    }
+
+    private func canSubmitOnboarding(_ profile: DriverProfileDetail) -> Bool {
+        guard profile.status == .pending else { return false }
+        return DriverDocumentType.requiredForOnboarding.allSatisfy { type in
+            if stagedUploads[type] != nil {
+                return true
+            }
+            guard let document = profile.documents.first(where: { $0.type == type && $0.status != .rejected }) else {
+                return false
+            }
+            if type == .nationalID {
+                return document.hasFile(side: "front") && document.hasFile(side: "back")
+            }
+            return true
+        }
+    }
+
+    private func uploadAll(_ uploads: [DriverDocumentUpload]) async throws {
+        let uploadDocument = uploadDocument
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for upload in uploads {
+                group.addTask {
+                    _ = try await uploadDocument(upload)
+                }
+            }
+            try await group.waitForAll()
+        }
     }
 
     private static func message(for error: Error) -> String {
@@ -110,6 +192,24 @@ public final class DriverProfileViewModel: ObservableObject {
             }
         }
         return error.localizedDescription
+    }
+}
+
+private extension DriverProfileDetail {
+    func replacingDocuments(_ documents: [DriverDocument]) -> DriverProfileDetail {
+        DriverProfileDetail(
+            id: id,
+            userID: userID,
+            fullName: fullName,
+            phone: phone,
+            status: status,
+            nationalIDMasked: nationalIDMasked,
+            vehicle: vehicle,
+            documents: documents,
+            readiness: readiness,
+            history: history,
+            createdAt: createdAt
+        )
     }
 }
 
@@ -135,7 +235,12 @@ public struct DriverProfileSummary: Equatable {
     public let hasVehicleDocumentRequirements: Bool
     public let supportOptions: [DriverSupportOption]
 
-    public init(profile: DriverProfileDetail, canOperate: Bool, canSubmit: Bool) {
+    public init(
+        profile: DriverProfileDetail,
+        stagedTypes: Set<DriverDocumentType> = [],
+        canOperate: Bool,
+        canSubmit: Bool
+    ) {
         self.id = profile.id
         self.fullName = profile.fullName
         self.phone = profile.phone
@@ -149,8 +254,8 @@ public struct DriverProfileSummary: Equatable {
         self.vehicle = profile.vehicle
         self.vehicleTitle = Self.vehicleTitle(profile.vehicle)
         self.vehicleDetail = Self.vehicleDetail(profile.vehicle)
-        self.checklist = Self.makeChecklist(profile: profile)
-        self.documents = Self.makeDocuments(profile: profile)
+        self.checklist = Self.makeChecklist(profile: profile, stagedTypes: stagedTypes)
+        self.documents = Self.makeDocuments(profile: profile, stagedTypes: stagedTypes)
         self.driverDocuments = self.documents.filter { $0.type.isVehicleDocument == false }
         self.vehicleDocuments = self.documents.filter { $0.type.isVehicleDocument }
         self.hasVehicleDocumentRequirements = profile.vehicle != nil
@@ -158,21 +263,27 @@ public struct DriverProfileSummary: Equatable {
         self.supportOptions = []
     }
 
-    private static func makeChecklist(profile: DriverProfileDetail) -> [DriverChecklistItem] {
+    private static func makeChecklist(
+        profile: DriverProfileDetail,
+        stagedTypes: Set<DriverDocumentType> = []
+    ) -> [DriverChecklistItem] {
         let types = DriverDocumentType.requiredForOnboarding + (profile.vehicle == nil ? [] : DriverDocumentType.requiredForVehicle)
         return types.map { type in
             let document = profile.documents.first { $0.type == type }
             return DriverChecklistItem(
                 type: type,
                 title: type.displayTitle,
-                state: state(for: type, document: document, readiness: profile.readiness),
-                detail: detail(for: type, document: document, readiness: profile.readiness)
+                state: state(for: type, document: document, readiness: profile.readiness, stagedTypes: stagedTypes),
+                detail: detail(for: type, document: document, readiness: profile.readiness, stagedTypes: stagedTypes)
             )
         }
     }
 
-    private static func makeDocuments(profile: DriverProfileDetail) -> [DriverDocumentRow] {
-        makeChecklist(profile: profile).map { item in
+    private static func makeDocuments(
+        profile: DriverProfileDetail,
+        stagedTypes: Set<DriverDocumentType> = []
+    ) -> [DriverDocumentRow] {
+        makeChecklist(profile: profile, stagedTypes: stagedTypes).map { item in
             let document = profile.documents.first { $0.type == item.type }
             return DriverDocumentRow(
                 type: item.type,
@@ -197,8 +308,18 @@ public struct DriverProfileSummary: Equatable {
     private static func state(
         for type: DriverDocumentType,
         document: DriverDocument?,
-        readiness: DriverReadiness
+        readiness: DriverReadiness,
+        stagedTypes: Set<DriverDocumentType> = []
     ) -> DriverChecklistState {
+        if stagedTypes.contains(type) {
+            return .pending
+        }
+        if type == .nationalID,
+           let document,
+           document.status != .rejected,
+           (document.hasFile(side: "front") == false || document.hasFile(side: "back") == false) {
+            return .missing
+        }
         if readiness.missing.contains(type) { return .missing }
         if readiness.pendingReview.contains(type) { return .pending }
         if readiness.expired.contains(type) { return .expired }
@@ -260,7 +381,7 @@ public struct DriverProfileSummary: Equatable {
             return DriverProfilePrimaryAction(title: "No action needed", detail: "You're ready to drive.", kind: .none)
         }
         if canSubmit {
-            return DriverProfilePrimaryAction(title: "Submit application", detail: "All required onboarding documents are uploaded.", kind: .submitApplication)
+            return DriverProfilePrimaryAction(title: "Submit application", detail: "All required onboarding documents are ready.", kind: .submitApplication)
         }
         switch profile.status {
         case .pending, .approved:
@@ -297,6 +418,14 @@ public struct DriverProfileSummary: Equatable {
                 kind: .openDocument(type)
             )
         }
+        if let nationalID = profile.documents.first(where: { $0.type == .nationalID && $0.status != .rejected }),
+           nationalID.hasFile(side: "front") == false || nationalID.hasFile(side: "back") == false {
+            return DriverOutstandingRequirement(
+                detail: "National ID requires both front and back images before you can submit.",
+                actionTitle: "Upload National ID",
+                kind: .openDocument(.nationalID)
+            )
+        }
         if let type = profile.readiness.missing.first {
             return DriverOutstandingRequirement(
                 detail: "\(type.displayTitle) is required.",
@@ -319,11 +448,29 @@ public struct DriverProfileSummary: Equatable {
     }
 
     private static func detail(for type: DriverDocumentType, document: DriverDocument?, readiness: DriverReadiness) -> String {
+        detail(for: type, document: document, readiness: readiness, stagedTypes: [])
+    }
+
+    private static func detail(
+        for type: DriverDocumentType,
+        document: DriverDocument?,
+        readiness: DriverReadiness,
+        stagedTypes: Set<DriverDocumentType>
+    ) -> String {
+        if stagedTypes.contains(type) {
+            return "Ready to submit."
+        }
         if let reason = document?.rejectionReason, document?.status == .rejected {
             return reason
         }
         if readiness.expired.contains(type) {
             return document?.expiresOn.map { "Expired \($0)" } ?? "Expired"
+        }
+        if type == .nationalID,
+           let document,
+           document.status != .rejected,
+           (document.hasFile(side: "front") == false || document.hasFile(side: "back") == false) {
+            return "Front and back images are required."
         }
         if readiness.pendingReview.contains(type) || document?.status == .pendingReview {
             return "We'll update this after review."

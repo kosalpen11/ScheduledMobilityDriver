@@ -133,6 +133,7 @@ final class DriverProfileDTOTests: XCTestCase {
         XCTAssertEqual(profile.documents.first?.contentType, "image/jpeg")
         XCTAssertEqual(profile.documents.first?.sizeBytes, 469579)
         XCTAssertEqual(profile.documents.first?.expiresOn, "2035-06-17")
+        XCTAssertTrue(profile.documents.first?.hasFile(side: "front") == true)
         XCTAssertEqual(profile.readiness.missing, [.drivingLicense, .profilePhoto])
         XCTAssertEqual(profile.readiness.pendingReview, [.nationalID])
         XCTAssertEqual(profile.readiness.hasActiveVehicle, false)

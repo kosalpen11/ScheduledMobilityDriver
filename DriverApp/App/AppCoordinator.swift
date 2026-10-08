@@ -15,7 +15,6 @@ final class AppCoordinator {
     private let navigationController: UINavigationController
     private let authFactory: any AuthScreenFactory
     private let homeFactory: any HomeScreenFactory
-    private let developmentHomeFactory: any HomeScreenFactory
     private let driverProfileFactory: any DriverProfileScreenFactory
     private let driverEntryFactory: any DriverEntryScreenFactory
     private let tripFactory: any TripScreenFactory
@@ -25,13 +24,13 @@ final class AppCoordinator {
     private let clearDriverSession: ClearDriverSessionUseCase
     private var session: AuthenticatedSession?
     private var entryTask: Task<Void, Never>?
+    private var isSigningOut = false
     private let entryResolver = DriverEntryResolver()
 
     init(
         navigationController: UINavigationController,
         authFactory: any AuthScreenFactory,
         homeFactory: any HomeScreenFactory,
-        developmentHomeFactory: any HomeScreenFactory,
         driverProfileFactory: any DriverProfileScreenFactory,
         driverEntryFactory: any DriverEntryScreenFactory,
         tripFactory: any TripScreenFactory,
@@ -43,7 +42,6 @@ final class AppCoordinator {
         self.navigationController = navigationController
         self.authFactory = authFactory
         self.homeFactory = homeFactory
-        self.developmentHomeFactory = developmentHomeFactory
         self.driverProfileFactory = driverProfileFactory
         self.driverEntryFactory = driverEntryFactory
         self.tripFactory = tripFactory
@@ -77,7 +75,7 @@ final class AppCoordinator {
             case .authenticated(let session):
                 Task { await self.resolveEntry(session: session, animated: true) }
             case .developmentHomeBypass:
-                self.showHome(session: nil, animated: true, factory: developmentHomeFactory)
+                self.showHome(session: nil, animated: true)
             }
         }
         navigationController.setViewControllers([auth], animated: animated)
@@ -85,11 +83,10 @@ final class AppCoordinator {
 
     private func showHome(
         session: AuthenticatedSession?,
-        animated: Bool,
-        factory: (any HomeScreenFactory)? = nil
+        animated: Bool
     ) {
         self.session = session
-        let home = (factory ?? homeFactory).makeHome { [weak self] output in
+        let home = homeFactory.makeHome { [weak self] output in
             self?.handle(output)
         }
         navigationController.setViewControllers([home], animated: animated)
@@ -149,7 +146,8 @@ final class AppCoordinator {
         navigationController.setViewControllers([
             AppLoadingViewController(
                 title: "Checking driver status",
-                message: "We’re getting your profile and requirements ready."
+                message: "We’re getting your profile and requirements ready.",
+                style: .default
             )
         ], animated: false)
     }
@@ -158,9 +156,20 @@ final class AppCoordinator {
         navigationController.setViewControllers([
             AppLoadingViewController(
                 title: "Scheduled Mobility",
-                message: "Restoring your driver session."
+                message: "Restoring your driver session.",
+                style: .sessionRestore
             )
         ], animated: false)
+    }
+
+    private func showSigningOut() {
+        navigationController.setViewControllers([
+            AppLoadingViewController(
+                title: "Signing out",
+                message: "Ending your driver session.",
+                style: .default
+            )
+        ], animated: true)
     }
 
     private func showRestoreFailed(message: String) {
@@ -334,10 +343,14 @@ final class AppCoordinator {
     }
 
     private func signOut() async {
+        guard isSigningOut == false else { return }
+        isSigningOut = true
         entryTask?.cancel()
+        showSigningOut()
         await clearDriverSession()
         await logout()
         session = nil
+        isSigningOut = false
         showAuth(animated: true)
     }
 
@@ -397,12 +410,20 @@ final class AppCoordinator {
 }
 
 private final class AppLoadingViewController: UIViewController {
+    enum Style {
+        case `default`
+        case sessionRestore
+    }
+
     private let loadingTitle: String
     private let message: String
+    private let style: Style
+    private let restoreMarkView = DriverSessionRestoreMarkView()
 
-    init(title: String, message: String) {
+    init(title: String, message: String, style: Style) {
         self.loadingTitle = title
         self.message = message
+        self.style = style
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -417,18 +438,36 @@ private final class AppLoadingViewController: UIViewController {
         configureLayout()
     }
 
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if style == .sessionRestore {
+            restoreMarkView.startAnimating()
+        }
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        restoreMarkView.stopAnimating()
+    }
+
     private func configureLayout() {
-        let mark = UIView()
-        mark.translatesAutoresizingMaskIntoConstraints = false
-        mark.backgroundColor = DriverTheme.brandColor.withAlphaComponent(0.14)
-        mark.layer.cornerRadius = 28
-        mark.layer.cornerCurve = .continuous
+        let markContainer = UIView()
+        markContainer.translatesAutoresizingMaskIntoConstraints = false
+        markContainer.backgroundColor = DriverTheme.brandColor.withAlphaComponent(0.10)
+        markContainer.layer.cornerRadius = 14
+        markContainer.layer.cornerCurve = .continuous
 
         let icon = UIImageView(image: UIImage(systemName: "figure.roll"))
         icon.translatesAutoresizingMaskIntoConstraints = false
         icon.tintColor = DriverTheme.brandColor
         icon.contentMode = .scaleAspectFit
-        mark.addSubview(icon)
+
+        let useRestoreMark = style == .sessionRestore
+        if useRestoreMark {
+            markContainer.addSubview(restoreMarkView)
+        } else {
+            markContainer.addSubview(icon)
+        }
 
         let titleLabel = UILabel()
         titleLabel.text = loadingTitle
@@ -459,7 +498,7 @@ private final class AppLoadingViewController: UIViewController {
         progressPill.layer.cornerRadius = DriverTheme.cardCornerRadius
         progressPill.layer.cornerCurve = .continuous
 
-        let stack = UIStackView(arrangedSubviews: [mark, titleLabel, progressPill])
+        let stack = UIStackView(arrangedSubviews: [markContainer, titleLabel, progressPill])
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.axis = .vertical
         stack.alignment = .center
@@ -467,17 +506,31 @@ private final class AppLoadingViewController: UIViewController {
         view.addSubview(stack)
 
         NSLayoutConstraint.activate([
-            mark.widthAnchor.constraint(equalToConstant: 56),
-            mark.heightAnchor.constraint(equalToConstant: 56),
-            icon.centerXAnchor.constraint(equalTo: mark.centerXAnchor),
-            icon.centerYAnchor.constraint(equalTo: mark.centerYAnchor),
-            icon.widthAnchor.constraint(equalToConstant: 28),
-            icon.heightAnchor.constraint(equalToConstant: 28),
+            markContainer.widthAnchor.constraint(greaterThanOrEqualToConstant: 72),
+            markContainer.heightAnchor.constraint(greaterThanOrEqualToConstant: 72),
             progressPill.leadingAnchor.constraint(greaterThanOrEqualTo: stack.leadingAnchor),
             progressPill.trailingAnchor.constraint(lessThanOrEqualTo: stack.trailingAnchor),
             stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 28),
             stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -28),
             stack.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.centerYAnchor)
         ])
+
+        if useRestoreMark {
+            NSLayoutConstraint.activate([
+                restoreMarkView.centerXAnchor.constraint(equalTo: markContainer.centerXAnchor),
+                restoreMarkView.centerYAnchor.constraint(equalTo: markContainer.centerYAnchor),
+                restoreMarkView.topAnchor.constraint(greaterThanOrEqualTo: markContainer.topAnchor, constant: 8),
+                restoreMarkView.leadingAnchor.constraint(greaterThanOrEqualTo: markContainer.leadingAnchor, constant: 8),
+                restoreMarkView.trailingAnchor.constraint(lessThanOrEqualTo: markContainer.trailingAnchor, constant: -8),
+                restoreMarkView.bottomAnchor.constraint(lessThanOrEqualTo: markContainer.bottomAnchor, constant: -8)
+            ])
+        } else {
+            NSLayoutConstraint.activate([
+                icon.centerXAnchor.constraint(equalTo: markContainer.centerXAnchor),
+                icon.centerYAnchor.constraint(equalTo: markContainer.centerYAnchor),
+                icon.widthAnchor.constraint(equalToConstant: 28),
+                icon.heightAnchor.constraint(equalToConstant: 28)
+            ])
+        }
     }
 }

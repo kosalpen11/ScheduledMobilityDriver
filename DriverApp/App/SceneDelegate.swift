@@ -25,12 +25,10 @@ final class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = navigationController
 
         let compositionRoot = CompositionRoot(configuration: .staging)
-        let developmentHomeFactory = CompositionRoot(configuration: .mock).makeHomeFactory()
         let coordinator = AppCoordinator(
             navigationController: navigationController,
             authFactory: compositionRoot.makeAuthFactory(),
             homeFactory: compositionRoot.makeHomeFactory(),
-            developmentHomeFactory: developmentHomeFactory,
             driverProfileFactory: compositionRoot.makeDriverProfileFactory(),
             driverEntryFactory: compositionRoot.makeDriverEntryFactory(),
             tripFactory: compositionRoot.makeTripFactory(),
@@ -56,7 +54,7 @@ private final class InternetBannerController {
     private let monitor = InternetConnectionMonitor()
     private let banner = UIView()
     private let label = UILabel()
-    private let iconView = UIImageView(image: UIImage(systemName: "wifi.slash"))
+    private let activity = UIActivityIndicatorView(style: .medium)
     private var topConstraint: NSLayoutConstraint?
     private var isVisible = false
 
@@ -88,11 +86,10 @@ private final class InternetBannerController {
         banner.layer.shadowRadius = 12
         banner.layer.shadowOffset = CGSize(width: 0, height: 4)
 
-        iconView.translatesAutoresizingMaskIntoConstraints = false
-        iconView.tintColor = .white
-        iconView.contentMode = .scaleAspectFit
+        activity.translatesAutoresizingMaskIntoConstraints = false
+        activity.color = .white
 
-        label.text = "No internet connection"
+        label.text = "Reconnecting..."
         label.font = .preferredFont(forTextStyle: .subheadline)
         label.adjustsFontForContentSizeCategory = true
         label.textColor = .white
@@ -100,7 +97,7 @@ private final class InternetBannerController {
         label.minimumScaleFactor = 0.85
         label.adjustsFontSizeToFitWidth = true
 
-        let stack = UIStackView(arrangedSubviews: [iconView, label])
+        let stack = UIStackView(arrangedSubviews: [activity, label])
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.axis = .horizontal
         stack.alignment = .center
@@ -117,12 +114,12 @@ private final class InternetBannerController {
             stack.leadingAnchor.constraint(equalTo: banner.leadingAnchor, constant: 14),
             stack.trailingAnchor.constraint(equalTo: banner.trailingAnchor, constant: -14),
             stack.bottomAnchor.constraint(equalTo: banner.bottomAnchor, constant: -10),
-            iconView.widthAnchor.constraint(equalToConstant: 18),
-            iconView.heightAnchor.constraint(equalToConstant: 18)
+            activity.widthAnchor.constraint(equalToConstant: 18),
+            activity.heightAnchor.constraint(equalToConstant: 18)
         ])
         banner.alpha = 0
         banner.isAccessibilityElement = true
-        banner.accessibilityLabel = "No internet connection"
+        banner.accessibilityLabel = "Reconnecting"
     }
 
     private func setVisible(_ visible: Bool) {
@@ -136,6 +133,12 @@ private final class InternetBannerController {
         ) {
             self.banner.alpha = visible ? 1 : 0
             self.window.layoutIfNeeded()
+        }
+
+        if visible {
+            activity.startAnimating()
+        } else {
+            activity.stopAnimating()
         }
     }
 }

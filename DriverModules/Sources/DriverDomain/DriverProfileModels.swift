@@ -52,6 +52,15 @@ public enum DriverDocumentType: String, Equatable, Sendable, CaseIterable {
     }
 }
 
+public enum NationalIDSide: String, Equatable, Sendable, CaseIterable {
+    case front
+    case back
+
+    public var fieldName: String {
+        rawValue
+    }
+}
+
 public enum DriverDocumentStatus: String, Equatable, Sendable {
     case pendingReview = "PENDING_REVIEW"
     case approved = "APPROVED"
@@ -67,6 +76,7 @@ public struct DriverDocument: Identifiable, Equatable, Sendable {
     public let status: DriverDocumentStatus
     public let contentType: String
     public let sizeBytes: Int
+    public let files: [DriverDocumentFile]
     public let expiresOn: String?
     public let uploadedAt: String?
     public let reviewedAt: String?
@@ -80,6 +90,7 @@ public struct DriverDocument: Identifiable, Equatable, Sendable {
         status: DriverDocumentStatus,
         contentType: String,
         sizeBytes: Int,
+        files: [DriverDocumentFile] = [],
         expiresOn: String?,
         uploadedAt: String?,
         reviewedAt: String?,
@@ -92,11 +103,28 @@ public struct DriverDocument: Identifiable, Equatable, Sendable {
         self.status = status
         self.contentType = contentType
         self.sizeBytes = sizeBytes
+        self.files = files
         self.expiresOn = expiresOn
         self.uploadedAt = uploadedAt
         self.reviewedAt = reviewedAt
         self.rejectionReason = rejectionReason
         self.expiryFlaggedAt = expiryFlaggedAt
+    }
+
+    public func hasFile(side: String) -> Bool {
+        files.contains { $0.side?.caseInsensitiveCompare(side) == .orderedSame }
+    }
+}
+
+public struct DriverDocumentFile: Equatable, Sendable {
+    public let contentType: String?
+    public let side: String?
+    public let sizeBytes: Int?
+
+    public init(contentType: String?, side: String?, sizeBytes: Int?) {
+        self.contentType = contentType
+        self.side = side
+        self.sizeBytes = sizeBytes
     }
 }
 
@@ -310,7 +338,21 @@ public struct DriverEligibilityPolicy: Sendable {
     }
 
     public func canSubmitOnboarding(_ profile: DriverProfileDetail) -> Bool {
-        profile.status == .pending && profile.readiness.allUploaded
+        profile.status == .pending && profile.hasRequiredOnboardingDocumentsForSubmit
+    }
+}
+
+public extension DriverProfileDetail {
+    var hasRequiredOnboardingDocumentsForSubmit: Bool {
+        DriverDocumentType.requiredForOnboarding.allSatisfy { type in
+            guard let document = documents.first(where: { $0.type == type && $0.status != .rejected }) else {
+                return false
+            }
+            if type == .nationalID {
+                return document.hasFile(side: "front") && document.hasFile(side: "back")
+            }
+            return true
+        }
     }
 }
 
@@ -384,6 +426,9 @@ public struct DriverDocumentUploadValidator: Sendable {
             }
             guard fieldNames.contains("front") else {
                 throw DriverProfileFailure.validation("Upload the front side of the National ID.")
+            }
+            guard fieldNames.contains("back") else {
+                throw DriverProfileFailure.validation("Upload the back side of the National ID.")
             }
         }
         if upload.type.requiresExpiry {

@@ -27,7 +27,7 @@ final class TripDetailViewController: UIViewController {
     private let notesLabel = UILabel()
     private let messageLabel = UILabel()
     private let primaryButton = UIButton(type: .system)
-    private let activity = UIActivityIndicatorView(style: .medium)
+    private let reconnectingIndicator = DriverReconnectingIndicatorView()
 
     init(model: TripDetailViewModel, onOutput: @escaping (TripOutput) -> Void) {
         self.model = model
@@ -117,8 +117,8 @@ final class TripDetailViewController: UIViewController {
         panelView.addArrangedSubview(makeInfoCard(title: "Destination", label: dropoffLabel))
         panelView.addArrangedSubview(notesLabel)
         panelView.addArrangedSubview(messageLabel)
+        panelView.addArrangedSubview(reconnectingIndicator)
         panelView.addArrangedSubview(primaryButton)
-        panelView.addArrangedSubview(activity)
 
         NSLayoutConstraint.activate([
             panelView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: DriverTheme.outerMargin),
@@ -155,8 +155,7 @@ final class TripDetailViewController: UIViewController {
     }
 
     private func render(_ state: TripDetailViewModel.State) {
-        activity.isHidden = !state.isBusy
-        state.isBusy ? activity.startAnimating() : activity.stopAnimating()
+        reconnectingIndicator.setVisible(isRefreshingContent(state))
 
         guard let presentation = state.presentation else {
             statusLabel.text = "Loading"
@@ -178,10 +177,24 @@ final class TripDetailViewController: UIViewController {
         dropoffLabel.text = "\(trip.dropoffName)\n\(trip.dropoffAddress)"
         notesLabel.text = trip.passengerNote.map { "Passenger note: \($0)" } ?? "No passenger notes."
         messageLabel.text = recoverableMessage(from: state)
-        primaryButton.configuration?.title = HomePresentationFormatting.title(for: presentation.primaryAction)
+        let title = HomePresentationFormatting.title(for: presentation.primaryAction)
+        let isActionLoading: Bool
+        if case .actionInFlight = state {
+            isActionLoading = true
+        } else {
+            isActionLoading = false
+        }
+        primaryButton.setDriverLoading(isActionLoading, title: title)
         primaryButton.isEnabled = presentation.canPerformPrimaryAction && !state.isBusy
         primaryButton.alpha = primaryButton.isEnabled ? 1 : 0.5
         renderMap(for: trip)
+    }
+
+    private func isRefreshingContent(_ state: TripDetailViewModel.State) -> Bool {
+        if case .refreshing = state, state.presentation != nil {
+            return true
+        }
+        return false
     }
 
     private func renderMap(for trip: ScheduledTrip) {

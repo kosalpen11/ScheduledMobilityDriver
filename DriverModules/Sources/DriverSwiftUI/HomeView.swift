@@ -36,6 +36,9 @@ struct HomeView: View {
                     .padding(.horizontal, DriverTheme.innerMargin)
                     .padding(.vertical, 16)
                 }
+                .refreshable {
+                    model.refresh()
+                }
                 .floatingPanelScrollTracking(proxy: proxy)
                 .background(Color(DriverTheme.panelColor))
             }
@@ -110,6 +113,10 @@ struct HomeView: View {
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            if showsReconnectIndicator {
+                DriverReconnectingPill()
+            }
+
             if let prompt {
                 Button {
                     handlePromptAction(prompt.action)
@@ -140,16 +147,26 @@ struct HomeView: View {
     @ViewBuilder
     private var nextTripCard: some View {
         Group {
-            if let trip = model.state.contentSnapshot?.nextTrip {
-                Button {
-                    onOutput(.showTrip(trip.id))
-                } label: {
-                    nextTripContent(trip)
+            if showsInitialSkeleton {
+                VStack(alignment: .leading, spacing: 8) {
+                    DriverSkeletonBlock(height: 18)
+                    DriverSkeletonBlock(height: 15)
+                    DriverSkeletonBlock(height: 14)
+                        .frame(maxWidth: 150, alignment: .leading)
                 }
-                .buttonStyle(.plain)
-                .accessibilityHint("Opens the next scheduled trip.")
+                .accessibilityLabel("Loading next trip")
             } else {
-                nextTripContent(nil)
+                if let trip = model.state.contentSnapshot?.nextTrip {
+                    Button {
+                        onOutput(.showTrip(trip.id))
+                    } label: {
+                        nextTripContent(trip)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Opens the next scheduled trip.")
+                } else {
+                    nextTripContent(nil)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -214,6 +231,14 @@ struct HomeView: View {
                     }
                 }
             }
+        } else if showsInitialSkeleton {
+            VStack(spacing: 12) {
+                DriverSkeletonBlock(height: 76)
+                DriverSkeletonBlock(height: 76)
+                DriverSkeletonBlock(height: 76)
+            }
+            .frame(maxWidth: .infinity)
+            .accessibilityLabel("Loading trip list")
         } else if case .failure(let message) = model.state {
             VStack(alignment: .leading, spacing: 12) {
                 Text(message)
@@ -252,6 +277,22 @@ struct HomeView: View {
         case .refreshFailed(_, let message), .failure(let message):
             return message
         }
+    }
+
+    private var showsInitialSkeleton: Bool {
+        switch model.state {
+        case .initial, .loading:
+            return model.state.contentSnapshot == nil
+        case .content, .empty, .refreshing, .updatingAvailability, .refreshFailed, .failure:
+            return false
+        }
+    }
+
+    private var showsReconnectIndicator: Bool {
+        if case .refreshing = model.state, model.state.contentSnapshot != nil {
+            return true
+        }
+        return false
     }
 }
 

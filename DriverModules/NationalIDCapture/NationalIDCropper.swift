@@ -32,7 +32,6 @@ enum NationalIDCropper {
         /// Allow slight overshoot (1%) for quads near frame edges during motion.
         /// Live tracking already validates geometry, so small frame proximity is acceptable.
         static let cornerOvershoot: CGFloat = 0.01
-        static let aspectRange: ClosedRange<CGFloat> = 0.52...0.74
         /// Quad area as a fraction of the image.
         static let areaRange: ClosedRange<CGFloat> = 0.08...0.85
         /// min/max ratio of opposite edges; low values mean heavy perspective.
@@ -44,7 +43,6 @@ enum NationalIDCropper {
     private enum OutputValidation {
         /// Lowered from 420 to 380 to accept more still frames with good content.
         static let minimumShortSide: CGFloat = 380
-        static let aspectRange: ClosedRange<CGFloat> = 0.52...0.74
     }
 
     /// How closely a Vision observation must match the live-tracked quad.
@@ -180,6 +178,11 @@ enum NationalIDCropper {
         marginFraction: CGFloat,
         log: (String) -> Void
     ) -> NationalIDCropResult? {
+        let measured = measuredAspectAndArea(rectangle.quad, image: image)
+        guard NationalIDGeometry.acceptedAspectRange.contains(measured.aspect) else {
+            log("crop rejected reason=expectedQuadAspect aspect=\(format(measured.aspect))")
+            return nil
+        }
         guard let correction = perspectiveCorrect(
             image,
             quad: rectangle.quad,
@@ -203,7 +206,7 @@ enum NationalIDCropper {
             image: corrected,
             quad: rectangle.quad,
             confidence: rectangle.confidence,
-            aspect: measuredAspectAndArea(rectangle.quad, image: image).aspect,
+            aspect: measured.aspect,
             decision: rectangle.decision
         )
     }
@@ -328,7 +331,7 @@ enum NationalIDCropper {
         let aspectScore = max(0, 1 - abs(measured.aspect - aspectTarget) / 0.20)
         let imageArea = CGFloat(image.width * image.height)
         let areaScore = min(1, measured.area / (imageArea * 0.25))
-        return 0.58 * CGFloat(observation.confidence) + 0.27 * aspectScore + 0.15 * areaScore
+        return 0.45 * CGFloat(observation.confidence) + 0.40 * aspectScore + 0.15 * areaScore
     }
 
     private static func measuredAspectAndArea(_ observation: VNRectangleObservation, image: CGImage) -> (aspect: CGFloat, area: CGFloat) {
@@ -471,7 +474,7 @@ enum NationalIDCropper {
         let horizontalBalance = min(metrics.topEdge, metrics.bottomEdge) / max(metrics.topEdge, metrics.bottomEdge, 0.0001)
         let verticalBalance = min(metrics.leftEdge, metrics.rightEdge) / max(metrics.leftEdge, metrics.rightEdge, 0.0001)
 
-        guard QuadValidation.aspectRange.contains(measured.aspect) else {
+        guard NationalIDGeometry.acceptedAspectRange.contains(measured.aspect) else {
             log("\(prefix) reason=aspect aspect=\(format(measured.aspect))")
             return false
         }
@@ -502,7 +505,7 @@ enum NationalIDCropper {
             log("crop rejected reason=outputTooSmall decision=\(decision) size=\(image.width)x\(image.height)")
             return false
         }
-        guard OutputValidation.aspectRange.contains(aspect) else {
+        guard NationalIDGeometry.acceptedAspectRange.contains(aspect) else {
             log("crop rejected reason=outputAspect decision=\(decision) aspect=\(format(aspect)) size=\(image.width)x\(image.height)")
             return false
         }

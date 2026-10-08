@@ -41,7 +41,10 @@ public actor MockDriverProfileRepository: DriverProfileRepository {
         profile.documents
     }
 
-    public func uploadDocument(_ upload: DriverDocumentUpload) async throws -> DriverDocument {
+    public func uploadDocument(
+        _ upload: DriverDocumentUpload,
+        progress: (@Sendable (Double) -> Void)?
+    ) async throws -> DriverDocument {
         let uploadSize = upload.files.reduce(0) { $0 + $1.content.count }
         let key = "\(upload.type.rawValue)-\(upload.filename)-\(uploadSize)"
         guard uploadIDs.contains(key) == false else {
@@ -58,6 +61,13 @@ public actor MockDriverProfileRepository: DriverProfileRepository {
             status: .pendingReview,
             contentType: files.first?.kind.contentType ?? "application/octet-stream",
             sizeBytes: uploadSize,
+            files: files.map {
+                DriverDocumentFile(
+                    contentType: $0.kind.contentType,
+                    side: $0.file.fieldName == "file" ? nil : $0.file.fieldName,
+                    sizeBytes: $0.file.content.count
+                )
+            },
             expiresOn: upload.expiresOn.map(Self.formatDate),
             uploadedAt: ISO8601DateFormatter().string(from: Date()),
             reviewedAt: nil,
@@ -76,6 +86,9 @@ public actor MockDriverProfileRepository: DriverProfileRepository {
         guard profile.readiness.allUploaded else {
             throw DriverProfileFailure.conflict("Upload the required documents first.")
         }
+        guard profile.hasRequiredOnboardingDocumentsForSubmit else {
+            throw DriverProfileFailure.conflict("Upload National ID front and back, driving licence, and profile photo first.")
+        }
         profile = profileWith(documents: profile.documents, status: .documentsSubmitted)
         return profile
     }
@@ -87,7 +100,13 @@ public actor MockDriverProfileRepository: DriverProfileRepository {
     private func profileWith(documents: [DriverDocument], status: DriverOperationalStatus) -> DriverProfileDetail {
         let required = DriverDocumentType.requiredForOnboarding + (profile.vehicle == nil ? [] : DriverDocumentType.requiredForVehicle)
         let missing = required.filter { type in
-            documents.contains { $0.type == type && $0.status != .rejected } == false
+            guard let document = documents.first(where: { $0.type == type && $0.status != .rejected }) else {
+                return true
+            }
+            if type == .nationalID {
+                return document.hasFile(side: "front") == false || document.hasFile(side: "back") == false
+            }
+            return false
         }
         let pending = documents.filter { $0.status == .pendingReview }.map(\.type)
         let expired = documents.filter { $0.expiryFlaggedAt != nil }.map(\.type)
@@ -155,7 +174,13 @@ public actor MockDriverProfileRepository: DriverProfileRepository {
 
         let required = DriverDocumentType.requiredForOnboarding + DriverDocumentType.requiredForVehicle
         let missing = required.filter { type in
-            documents.contains { $0.type == type && $0.status != .rejected } == false
+            guard let document = documents.first(where: { $0.type == type && $0.status != .rejected }) else {
+                return true
+            }
+            if type == .nationalID {
+                return document.hasFile(side: "front") == false || document.hasFile(side: "back") == false
+            }
+            return false
         }
         let pending = documents.filter { $0.status == .pendingReview }.map(\.type)
 
@@ -185,12 +210,29 @@ public actor MockDriverProfileRepository: DriverProfileRepository {
             status: status,
             contentType: type == .profilePhoto ? "image/jpeg" : "application/pdf",
             sizeBytes: 1_482_240,
+            files: mockFiles(for: type),
             expiresOn: expiresOn,
             uploadedAt: "2026-10-02T09:12:00Z",
             reviewedAt: status == .approved ? "2026-10-03T11:00:00Z" : nil,
             rejectionReason: status == .rejected ? "Image is not readable." : nil,
             expiryFlaggedAt: nil
         )
+    }
+
+    private static func mockFiles(for type: DriverDocumentType) -> [DriverDocumentFile] {
+        if type == .nationalID {
+            return [
+                DriverDocumentFile(contentType: "image/jpeg", side: "front", sizeBytes: 741_120),
+                DriverDocumentFile(contentType: "image/jpeg", side: "back", sizeBytes: 741_120)
+            ]
+        }
+        return [
+            DriverDocumentFile(
+                contentType: type == .profilePhoto ? "image/jpeg" : "application/pdf",
+                side: nil,
+                sizeBytes: 1_482_240
+            )
+        ]
     }
 
     private static func formatDate(_ date: Date) -> String {

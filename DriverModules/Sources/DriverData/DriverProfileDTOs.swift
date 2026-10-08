@@ -128,6 +128,7 @@ struct DriverDocumentDTO: Decodable {
             status: DriverDocumentStatus(rawValue: status) ?? .unknown,
             contentType: contentType ?? primaryFile?.contentType ?? "application/octet-stream",
             sizeBytes: sizeBytes ?? primaryFile?.sizeBytes ?? 0,
+            files: files?.map { $0.domain() } ?? [],
             expiresOn: expiresOn,
             uploadedAt: uploadedAt,
             reviewedAt: reviewedAt,
@@ -141,6 +142,10 @@ struct DriverDocumentFileDTO: Decodable {
     let contentType: String?
     let side: String?
     let sizeBytes: Int?
+
+    func domain() -> DriverDocumentFile {
+        DriverDocumentFile(contentType: contentType, side: side, sizeBytes: sizeBytes)
+    }
 }
 
 enum DriverProfileErrorMapper {

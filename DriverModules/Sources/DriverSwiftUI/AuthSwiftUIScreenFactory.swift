@@ -178,14 +178,10 @@ private struct PhoneLoginView: View {
             Button {
                 onSubmit(phone)
             } label: {
-                HStack {
-                    if state.isSubmitting {
-                        ProgressView()
-                            .tint(.white)
-                    }
-                    Text(state.isSubmitting ? "Sending" : "Continue")
-                        .font(.headline)
-                }
+                DriverPrimaryLoadingLabel(
+                    title: state.isSubmitting ? "Sending" : "Continue",
+                    isLoading: state.isSubmitting
+                )
                 .frame(maxWidth: .infinity, minHeight: DriverTheme.controlHeight)
             }
             .buttonStyle(PrimaryDriverButtonStyle())
@@ -216,6 +212,7 @@ private struct OTPVerificationView: View {
     let onChangeNumber: () -> Void
     let onResend: () -> Void
     @State private var code: String
+    @State private var timerTick = Date()
     @FocusState private var isFocused: Bool
 
     init(
@@ -280,8 +277,9 @@ private struct OTPVerificationView: View {
                 Button("Change number", action: onChangeNumber)
                 Spacer()
                 Button(resendTitle, action: onResend)
-                    .disabled(state.isSubmitting)
+                    .disabled(state.isSubmitting || state.canResend == false)
             }
+            .disabled(state.isSubmitting)
             .font(.callout.weight(.semibold))
             .foregroundColor(Color(DriverTheme.brandColor))
             .frame(minHeight: DriverTheme.minimumTouchTarget)
@@ -296,14 +294,10 @@ private struct OTPVerificationView: View {
             Button {
                 onSubmit(code)
             } label: {
-                HStack {
-                    if state.isSubmitting {
-                        ProgressView()
-                            .tint(.white)
-                    }
-                    Text(state.isSubmitting ? "Verifying" : "Verify")
-                        .font(.headline)
-                }
+                DriverPrimaryLoadingLabel(
+                    title: state.isSubmitting ? "Verifying" : "Verify",
+                    isLoading: state.isSubmitting
+                )
                 .frame(maxWidth: .infinity, minHeight: DriverTheme.controlHeight)
             }
             .buttonStyle(PrimaryDriverButtonStyle())
@@ -312,13 +306,18 @@ private struct OTPVerificationView: View {
         .onAppear {
             isFocused = true
         }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now in
+            guard state.canResend == false else { return }
+            timerTick = now
+        }
         .onChange(of: state.code) { value in
             code = value
         }
     }
 
     private var resendTitle: String {
-        state.canResend ? "Resend code" : "Resend in \(state.resendRemainingSeconds)s"
+        _ = timerTick
+        return state.canResend ? "Resend code" : "Resend in \(state.resendRemainingSeconds)s"
     }
 
     private func character(at index: Int) -> String {

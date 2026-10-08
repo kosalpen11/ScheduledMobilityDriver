@@ -29,6 +29,17 @@ Home is currently composed with the SwiftUI renderer by default. The UIKit Home 
 
 Latest validation run:
 
+- Loading UX refinement is implemented across session restore, auth actions, home trip lists, profile/documents, reconnect banners, and upload feedback using native UIKit/SwiftUI components with shared design-system loading primitives.
+- Session restoration now uses a branded native loader with an `M` mark and a teal dot moving along a road path while the DEV badge remains static; Reduce Motion uses a static mark without custom motion.
+- Initial loading for Home trip lists (UIKit and SwiftUI), Driver Profile, and Uploaded Documents now uses skeleton placeholders shaped like the real card/list layout instead of a full-screen blocking spinner.
+- Primary actions now show native in-button activity indicators and disable repeated taps in Auth, Trip action, Profile submit, and upload confirmation actions.
+- Native pull-to-refresh is enabled for SwiftUI Home (`.refreshable`) and UIKit Home/Profile/Documents (`UIRefreshControl`), and refreshes keep current content visible whenever prior data exists.
+- Reconnecting feedback is now compact and non-blocking: global connectivity banner text is `Reconnecting...` with a native spinner, and feature screens can show compact reconnecting pills while retaining content.
+- Upload UI now supports true progress display when provided by the upload pipeline and falls back to an indeterminate native spinner when incremental progress is unavailable; no synthetic progress values are generated.
+- `xcodebuild -project ScheduledMobilityDriver.xcodeproj -scheme ScheduledMobilityDriver -sdk iphonesimulator26.2 -destination 'generic/platform=iOS Simulator' build` passed after the loading UX and staging-only runtime cleanup.
+- Automated tests were not run in this phase per instruction.
+- Visual simulator inspection was completed on the booted iPhone 17 iOS 26.2 simulator after install/launch. The available Home screen showed the map, disabled availability control, incomplete-profile shortcut, and empty trip card without layout clipping.
+
 - `xcodebuild -project ScheduledMobilityDriver.xcodeproj -scheme ScheduledMobilityDriver -destination 'generic/platform=iOS Simulator' build` passed after the National ID capture logging, overlay mapping, CoreMotion shake gate, focus steering, and upload preview/retake refinement.
 - `xcodebuild -scheme DriverModules-Package -destination 'platform=iOS Simulator,id=617D7F10-00AE-4DDB-92BA-E30F1FB60B12' test` passed on an iPhone SE (3rd generation) iOS 17.0 simulator after the National ID geometry fix. The suite executed DriverData, DriverDomain, DriverPresentation, and DriverUIKit tests, including seven National ID geometry tests.
 - `xcodebuild -project ScheduledMobilityDriver.xcodeproj -scheme ScheduledMobilityDriver -destination 'platform=iOS Simulator,id=8E235B8E-1C0B-43AE-807B-FE1E232B05CA' build` passed on Xcode 26.2 using an iPhone 17 simulator on iOS 26.2 after the Home layout/profile sheet refinement.
@@ -286,7 +297,7 @@ Implemented client behavior:
 - `AppCoordinator` presents an injected compact profile summary sheet from `DriverProfileScreenFactory`, backed by the existing `DriverProfileViewModel`. The sheet shows driver name, masked phone, friendly status, readiness, vehicle summary, View profile, and Sign out.
 - View profile continues into the existing full profile screen; profile loading and logout remain outside Home Views.
 - The sheet uses iOS 15 page-sheet detents, shared colors/spacing, Dynamic Type, VoiceOver labels, dark mode, and native reduced-motion-friendly presentation.
-- The Debug staging login bypass opens Home with an explicit mock Home factory so trips, primary/backup assignments, availability, and trip actions can be reviewed without a staging account. It does not change normal staging runtime wiring.
+- The app no longer exposes a Debug staging login bypass or constructs a mock Home factory during app launch; staging startup uses staging-backed auth/profile/document/onboarding services and explicit unavailable trip/availability repositories.
 - Home uses FloatingPanel 3.2.4 through Swift Package Manager for the panel interaction. UIKit and SwiftUI share `.tip`, `.half`, and `.full` anchors, native grabber behavior, and scroll tracking; the map remains stable underneath.
 
 Remaining UI limitations:

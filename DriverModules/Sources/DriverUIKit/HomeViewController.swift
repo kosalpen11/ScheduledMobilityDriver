@@ -20,6 +20,7 @@ final class HomeViewController: UIViewController {
     private let resolver = TripActionResolver()
     private var cancellables = Set<AnyCancellable>()
     private var visibleTrips: [ScheduledTrip] = []
+    private var showsTripSkeleton = false
 
     private let mapView = MKMapView()
     private let panelView = UIView()
@@ -39,6 +40,9 @@ final class HomeViewController: UIViewController {
     private let retryButton = UIButton(type: .system)
     private let tableView = UITableView(frame: .zero, style: .plain)
     private let messageLabel = UILabel()
+    private let reconnectingIndicator = DriverReconnectingIndicatorView()
+    private let refreshControl = UIRefreshControl()
+    private let nextTripSkeletonStack = UIStackView()
 
     init(model: HomeViewModel, onOutput: @escaping (HomeOutput) -> Void) {
         self.model = model
@@ -137,7 +141,17 @@ final class HomeViewController: UIViewController {
 
         configureNextTripCard()
 
-        let stack = UIStackView(arrangedSubviews: [topRow, nextTripHeadingLabel, nextTripCard, assignmentsHeadingLabel, messageLabel, profileShortcutButton, retryButton, tableView])
+        let stack = UIStackView(arrangedSubviews: [
+            topRow,
+            reconnectingIndicator,
+            nextTripHeadingLabel,
+            nextTripCard,
+            assignmentsHeadingLabel,
+            messageLabel,
+            profileShortcutButton,
+            retryButton,
+            tableView
+        ])
         stack.axis = .vertical
         stack.spacing = 14
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -206,7 +220,10 @@ final class HomeViewController: UIViewController {
         tableView.backgroundColor = .clear
         tableView.separatorStyle = .none
         tableView.showsVerticalScrollIndicator = false
+        refreshControl.addTarget(self, action: #selector(refreshPulled), for: .valueChanged)
+        tableView.refreshControl = refreshControl
         tableView.register(TripCell.self, forCellReuseIdentifier: TripCell.reuseIdentifier)
+        tableView.register(TripSkeletonCell.self, forCellReuseIdentifier: TripSkeletonCell.reuseIdentifier)
 
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: panelView.topAnchor, constant: 20),
@@ -266,6 +283,24 @@ final class HomeViewController: UIViewController {
             stack.trailingAnchor.constraint(equalTo: nextTripCard.trailingAnchor, constant: -14),
             stack.bottomAnchor.constraint(equalTo: nextTripCard.bottomAnchor, constant: -14)
         ])
+
+        nextTripSkeletonStack.translatesAutoresizingMaskIntoConstraints = false
+        nextTripSkeletonStack.axis = .vertical
+        nextTripSkeletonStack.spacing = 8
+        nextTripSkeletonStack.addArrangedSubview(DriverSkeletonBlockView(height: 18))
+        nextTripSkeletonStack.addArrangedSubview(DriverSkeletonBlockView(height: 16))
+        let shortLine = DriverSkeletonBlockView(height: 14)
+        shortLine.widthAnchor.constraint(equalToConstant: 160).isActive = true
+        nextTripSkeletonStack.addArrangedSubview(shortLine)
+        nextTripSkeletonStack.isHidden = true
+        nextTripCard.addSubview(nextTripSkeletonStack)
+
+        NSLayoutConstraint.activate([
+            nextTripSkeletonStack.topAnchor.constraint(equalTo: nextTripCard.topAnchor, constant: 14),
+            nextTripSkeletonStack.leadingAnchor.constraint(equalTo: nextTripCard.leadingAnchor, constant: 14),
+            nextTripSkeletonStack.trailingAnchor.constraint(lessThanOrEqualTo: nextTripCard.trailingAnchor, constant: -14),
+            nextTripSkeletonStack.bottomAnchor.constraint(equalTo: nextTripCard.bottomAnchor, constant: -14)
+        ])
     }
 
     private func bind() {
@@ -279,6 +314,8 @@ final class HomeViewController: UIViewController {
     }
 
     private func render(_ state: HomeViewState, profileGate: HomeProfileGate) {
+        showsTripSkeleton = false
+
         if let snapshot = state.contentSnapshot {
             visibleTrips = snapshot.trips
             let isAvailable = snapshot.availability == .available
@@ -291,6 +328,12 @@ final class HomeViewController: UIViewController {
             renderAnnotations(for: snapshot.trips)
         } else {
             visibleTrips = []
+            if case .initial = state {
+                showsTripSkeleton = true
+            }
+            if case .loading = state {
+                showsTripSkeleton = true
+            }
             statusLabel.text = "Loading scheduled work"
             statusLabel.textColor = .label
             availabilityButton.configuration?.title = "Availability"
@@ -298,6 +341,9 @@ final class HomeViewController: UIViewController {
             messageLabel.text = message(for: state, snapshot: nil, profileGate: profileGate)
             renderNextTrip(nil)
         }
+
+        setNextTripSkeletonVisible(showsTripSkeleton)
+        reconnectingIndicator.setVisible(isRefreshingContent(state))
 
         availabilityButton.isEnabled = !state.isBusy && state.contentSnapshot != nil && profileGate.allowsAvailability
         availabilityButton.alpha = availabilityButton.isEnabled ? 1 : 0.55
@@ -307,7 +353,26 @@ final class HomeViewController: UIViewController {
         retryButton.isHidden = !isRefreshFailure(state)
         retryButton.isEnabled = !state.isBusy
         navigationItem.leftBarButtonItem?.isEnabled = !state.isBusy
+        if isRefreshingContent(state) == false {
+            refreshControl.endRefreshing()
+        }
         tableView.reloadData()
+    }
+
+    private func setNextTripSkeletonVisible(_ visible: Bool) {
+        nextTripSkeletonStack.isHidden = !visible
+        nextTripEyebrowLabel.alpha = visible ? 0 : 1
+        nextTripTimeLabel.alpha = visible ? 0 : 1
+        nextTripRouteLabel.alpha = visible ? 0 : 1
+        nextTripRoleLabel.alpha = visible ? 0 : 1
+        nextTripCard.accessibilityLabel = visible ? "Loading next trip" : nextTripCard.accessibilityLabel
+    }
+
+    private func isRefreshingContent(_ state: HomeViewState) -> Bool {
+        if case .refreshing = state, state.contentSnapshot != nil {
+            return true
+        }
+        return false
     }
 
     private func isRefreshFailure(_ state: HomeViewState) -> Bool {
@@ -400,6 +465,10 @@ final class HomeViewController: UIViewController {
         model.refresh()
     }
 
+    @objc private func refreshPulled() {
+        model.refresh()
+    }
+
 }
 
 private final class HomeFloatingPanelLayout: FloatingPanelBottomLayout {
@@ -420,18 +489,54 @@ private final class HomeFloatingPanelLayout: FloatingPanelBottomLayout {
 
 extension HomeViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        visibleTrips.count
+        showsTripSkeleton ? 3 : visibleTrips.count
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        if showsTripSkeleton {
+            return tableView.dequeueReusableCell(withIdentifier: TripSkeletonCell.reuseIdentifier, for: indexPath)
+        }
         let cell = tableView.dequeueReusableCell(withIdentifier: TripCell.reuseIdentifier, for: indexPath) as! TripCell
         cell.configure(with: visibleTrips[indexPath.row], action: resolver.nextAction(for: visibleTrips[indexPath.row]))
         return cell
     }
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        guard showsTripSkeleton == false else { return }
         tableView.deselectRow(at: indexPath, animated: true)
         onOutput(.showTrip(visibleTrips[indexPath.row].id))
+    }
+}
+
+private final class TripSkeletonCell: UITableViewCell {
+    static let reuseIdentifier = "TripSkeletonCell"
+
+    override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
+        super.init(style: style, reuseIdentifier: reuseIdentifier)
+        backgroundColor = .clear
+        selectionStyle = .none
+
+        let container = UIStackView(arrangedSubviews: [
+            DriverSkeletonBlockView(height: 18),
+            DriverSkeletonBlockView(height: 14),
+            DriverSkeletonBlockView(height: 14)
+        ])
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.axis = .vertical
+        container.spacing = 8
+        contentView.addSubview(container)
+
+        NSLayoutConstraint.activate([
+            container.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 8),
+            container.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -8),
+            container.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
+            container.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8)
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 }
 

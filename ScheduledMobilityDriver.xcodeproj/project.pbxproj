@@ -11,6 +11,7 @@
 		000000000000000000000102 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000202 /* SceneDelegate.swift */; };
 		000000000000000000000103 /* AppCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000203 /* AppCoordinator.swift */; };
 		000000000000000000000104 /* CompositionRoot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000204 /* CompositionRoot.swift */; };
+		00000000000000000000010D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000208 /* Assets.xcassets */; };
 		000000000000000000000105 /* DriverDomain in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000501 /* DriverDomain */; };
 		000000000000000000000106 /* DriverData in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000502 /* DriverData */; };
 		000000000000000000000107 /* PlatformServices in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000503 /* PlatformServices */; };
@@ -29,6 +30,7 @@
 		000000000000000000000205 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		000000000000000000000206 /* Development.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Development.xcconfig; sourceTree = "<group>"; };
 		000000000000000000000207 /* ScheduledMobilityDriver.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScheduledMobilityDriver.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000208 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		448628AF3073EB4500C34640 /* feature.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = feature.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -85,6 +87,7 @@
 				000000000000000000000203 /* AppCoordinator.swift */,
 				000000000000000000000204 /* CompositionRoot.swift */,
 				000000000000000000000205 /* Info.plist */,
+				000000000000000000000208 /* Assets.xcassets */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -169,6 +172,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				00000000000000000000010D /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

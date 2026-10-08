@@ -143,8 +143,20 @@ Home layout and profile access refinement:
 - Native profile buttons remain typed Home outputs in both renderers. The coordinator presents an injected iOS 15 page-sheet profile summary using the existing `DriverProfileViewModel` and repository flow.
 - The compact sheet shows driver identity, masked phone, friendly account status, readiness, vehicle summary, View profile, and Account/Sign out. View profile opens the existing full profile screen.
 - Shared styling and accessibility behavior remain consistent across renderers, including Dynamic Type, VoiceOver, dark mode, and reduced-motion-friendly native transitions.
-- The Debug staging login bypass uses an explicit mock Home factory for UI review of scheduled trips, primary/backup roles, availability, and mock trip actions. Real staging login continues to use real repositories and never falls back to these mocks.
+- The app launch path no longer constructs a mock Home factory or exposes the Debug staging login bypass. Staging uses real auth/profile/document/onboarding repositories and explicit unavailable trip/availability repositories until those backend endpoints are verified.
 - Home uses FloatingPanel 3.2.4 through Swift Package Manager. UIKit and SwiftUI share `.tip`, `.half`, and `.full` anchors plus scroll tracking while keeping the map persistent.
+
+Loading and progress refinement (current phase):
+
+- Reusable loading primitives are added in `DesignSystem` for UIKit and SwiftUI, including shared loading semantics, skeleton blocks, reconnecting indicators, in-button native activity rendering, and a branded session-restore mark.
+- Session restoration now renders a branded native `M` loader where a teal dot moves along a road path while the DEV badge remains static. Under Reduce Motion, the dot animation is removed and the mark is static.
+- Home trip-list initial loading now uses layout-matching skeleton placeholders in both UIKit and SwiftUI implementations.
+- Driver Profile initial loading and Uploaded Documents initial loading now use skeleton cards matching real section/document structure.
+- Auth phone and OTP primary actions now show native spinner-in-button loading with preserved button width and duplicate-submission prevention.
+- Primary trip action and upload confirmation actions also use in-button native loading and duplicate-tap guards.
+- Home (SwiftUI and UIKit), Driver Profile (UIKit), and Uploaded Documents (UIKit) now use native pull-to-refresh indicators while preserving existing content during refresh when prior data exists.
+- Reconnecting feedback remains non-blocking: the app-level banner now shows compact `Reconnecting...` status with a native spinner, and feature-level compact reconnecting indicators can appear while content stays visible.
+- Upload UI now supports real upload progress when surfaced by the upload pipeline and otherwise shows an indeterminate native spinner. No simulated progress is used.
 
 Remaining limitations:
 
@@ -247,8 +259,9 @@ Staging safeguards:
 
 - Staging mode uses real auth/session/profile/document/onboarding repositories.
 - Staging mode does not fall back to mock auth, mock profile, mock documents, mock trips, or mock availability.
+- App launch no longer creates a mock Home factory for a development bypass; the auth flow and any Home route use the staging composition root.
 - Trip and availability repositories are explicit unavailable implementations in real mode because implemented backend endpoints were not verified.
-- Runtime OTP delivery and end-to-end staging login were not manually exercised in this phase; compilation was verified only.
+- Runtime OTP delivery and end-to-end staging login were not manually exercised in this phase. Compilation passed and the available simulator Home state was visually inspected on iPhone 17 iOS 26.2.
 
 HTTP logging:
 

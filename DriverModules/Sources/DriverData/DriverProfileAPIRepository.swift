@@ -54,7 +54,10 @@ public final class DriverProfileAPIRepository: DriverProfileRepository, @uncheck
         }
     }
 
-    public func uploadDocument(_ upload: DriverDocumentUpload) async throws -> DriverDocument {
+    public func uploadDocument(
+        _ upload: DriverDocumentUpload,
+        progress: (@Sendable (Double) -> Void)?
+    ) async throws -> DriverDocument {
         do {
             let files = try validator.validateFiles(upload)
             var parts: [MultipartFormPart] = [
@@ -81,6 +84,7 @@ public final class DriverProfileAPIRepository: DriverProfileRepository, @uncheck
                 parts: parts,
                 headers: ["Idempotency-Key": UUID().uuidString]
             )
+            _ = progress
             return dto.domain()
         } catch {
             throw DriverProfileErrorMapper.map(error)

@@ -124,6 +124,7 @@ final class NationalIDFrameTracker {
     func process(
         sampleBuffer: CMSampleBuffer,
         guideRect: CGRect,
+        requiresDocumentConfirmation: Bool = true,
         now: CFTimeInterval = CACurrentMediaTime()
     ) -> NIDDetectionResult {
         let gap = lastCheck.map { now - $0 > NIDTrackingConfig.maximumFrameGap || now - $0 <= 0 } ?? true
@@ -278,7 +279,8 @@ final class NationalIDFrameTracker {
         }
 
         // OCR on live boundary for smooth confirmation; crop still uses lock at ready.
-        if shouldRunOCR(now: now, boundary: boundary, focusOK: focusOK, qualityOK: quality.acceptable) {
+        if requiresDocumentConfirmation,
+           shouldRunOCR(now: now, boundary: boundary, focusOK: focusOK, qualityOK: quality.acceptable) {
             runOCR(sampleBuffer: sampleBuffer, boundary: boundary, now: now)
         }
 
@@ -328,9 +330,9 @@ final class NationalIDFrameTracker {
             ? .frameGap
             : boundary == nil
             ? .missingBoundary
-            : !documentConfirmed && !cardPresent
+            : requiresDocumentConfirmation && !documentConfirmed && !cardPresent
             ? .ocrMissing
-            : !documentConfirmed && !ocrFresh
+            : requiresDocumentConfirmation && !documentConfirmed && !ocrFresh
             ? .ocrExpired
             : cardCutOff
             ? .cardCutOff
@@ -459,7 +461,7 @@ final class NationalIDFrameTracker {
         let ready = stability.ready
             && stability.motionState == .stable
             && stability.cornerState == .stable
-            && documentConfirmed
+            && (!requiresDocumentConfirmation || documentConfirmed)
             && focusOK
             && quality.acceptable
             && boundary != nil
@@ -482,7 +484,7 @@ final class NationalIDFrameTracker {
             && quality.acceptable
             && focusOK
             && !cardCutOff
-            && documentConfirmed
+            && (!requiresDocumentConfirmation || documentConfirmed)
         let status: NIDDetectionStatus = ready ? .ready : (holding ? .holdSteady : .notDetected)
         // Overlay must stay live/smooth. Capture path reads candidateReferenceQuad
         // (lockedCropQuad) separately when status == ready.
@@ -667,7 +669,9 @@ final class NationalIDFrameTracker {
     private func isIDLikeCandidate(_ quad: NationalIDQuad, imageSize: CGSize) -> Bool {
         let metrics = NationalIDGeometry.metrics(for: NationalIDGeometry.scaled(quad, to: imageSize))
         // aspectScore uses target 0.631 ± 0.20; require a non-trivial score.
-        guard metrics.aspectScore >= 0.35 else { return false }
+          guard NationalIDGeometry.acceptedAspectRange.contains(metrics.measuredAspect),
+              metrics.aspectScore >= 0.35
+          else { return false }
         // Normalized area: card should occupy a meaningful part of the frame.
         guard (0.08...0.70).contains(quad.area) else { return false }
         let horizontalBalance = min(metrics.topEdge, metrics.bottomEdge)
@@ -856,8 +860,12 @@ final class NationalIDFrameTracker {
         }
         let oriented = CGSize(width: CVPixelBufferGetHeight(pixelBuffer), height: CVPixelBufferGetWidth(pixelBuffer))
         let scaled = NationalIDGeometry.scaled(quad, to: oriented)
+        let guideNormPadding: CGFloat = 16
         let normalizedGuide = guideRectForSampling(guideRect: guideRect, rawSize: oriented)
-            .insetBy(dx: -oriented.width * 0.04, dy: -oriented.height * 0.04)
+            .insetBy(
+                dx: -(oriented.width * 0.04 + guideNormPadding),
+                dy: -(oriented.height * 0.04 + guideNormPadding)
+            )
         return scaled.corners.allSatisfy { normalizedGuide.contains($0) }
     }
 

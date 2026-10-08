@@ -50,7 +50,7 @@ final class DriverProfileTests: XCTestCase {
         }
     }
 
-    func testNationalIDUploadUsesFrontFieldByDefault() throws {
+    func testNationalIDUploadRequiresFrontAndBackFields() throws {
         let jpeg = Data([0xFF, 0xD8, 0xFF])
         let upload = DriverDocumentUpload(
             type: .nationalID,
@@ -61,7 +61,9 @@ final class DriverProfileTests: XCTestCase {
         )
 
         XCTAssertEqual(upload.files.map(\.fieldName), ["front"])
-        XCTAssertEqual(try DriverDocumentUploadValidator(today: { Date(timeIntervalSince1970: 0) }).validate(upload), .jpeg)
+        XCTAssertThrowsError(try DriverDocumentUploadValidator(today: { Date(timeIntervalSince1970: 0) }).validate(upload)) { error in
+            XCTAssertEqual(error as? DriverProfileFailure, .validation("Upload the back side of the National ID."))
+        }
     }
 
     func testNationalIDUploadAcceptsFrontAndBackFields() throws {
@@ -79,6 +81,29 @@ final class DriverProfileTests: XCTestCase {
         let files = try DriverDocumentUploadValidator(today: { Date(timeIntervalSince1970: 0) }).validateFiles(upload)
         XCTAssertEqual(files.map(\.file.fieldName), ["front", "back"])
         XCTAssertEqual(files.map(\.kind), [.jpeg, .jpeg])
+    }
+
+    func testDocumentSideMatchingIgnoresBackendCase() {
+        let document = DriverDocument(
+            id: UUID(),
+            type: .nationalID,
+            vehicleID: nil,
+            status: .pendingReview,
+            contentType: "image/jpeg",
+            sizeBytes: 469_579,
+            files: [
+                DriverDocumentFile(contentType: "image/jpeg", side: "FRONT", sizeBytes: 469_579),
+                DriverDocumentFile(contentType: "image/jpeg", side: "BACK", sizeBytes: 376_100)
+            ],
+            expiresOn: "2035-06-17",
+            uploadedAt: nil,
+            reviewedAt: nil,
+            rejectionReason: nil,
+            expiryFlaggedAt: nil
+        )
+
+        XCTAssertTrue(document.hasFile(side: "front"))
+        XCTAssertTrue(document.hasFile(side: "back"))
     }
 
     private func makeProfile(status: DriverOperationalStatus, readiness: DriverReadiness) -> DriverProfileDetail {

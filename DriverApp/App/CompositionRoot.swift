@@ -91,6 +91,7 @@ final class CompositionRoot {
     func makeDriverProfileFactory() -> any DriverProfileScreenFactory {
         DriverProfileUIKitScreenFactory(
             loadProfile: LoadDriverProfileUseCase(repository: driverProfileRepository),
+            loadDocuments: LoadDriverDocumentsUseCase(repository: driverProfileRepository),
             uploadDocument: UploadDriverDocumentUseCase(repository: driverProfileRepository),
             submitOnboarding: SubmitDriverOnboardingUseCase(repository: driverProfileRepository)
         )
@@ -116,10 +117,6 @@ final class CompositionRoot {
     }
 
     private var allowsDevelopmentBypass: Bool {
-        #if DEBUG
-        return configuration.environment == .staging
-        #else
         return false
-        #endif
     }
 }

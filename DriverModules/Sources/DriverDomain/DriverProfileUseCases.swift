@@ -19,6 +19,18 @@ public struct LoadDriverProfileUseCase: Sendable {
     }
 }
 
+public struct LoadDriverDocumentsUseCase: Sendable {
+    private let repository: any DriverProfileRepository
+
+    public init(repository: any DriverProfileRepository) {
+        self.repository = repository
+    }
+
+    public func callAsFunction() async throws -> [DriverDocument] {
+        try await repository.loadDocuments()
+    }
+}
+
 public struct UploadDriverDocumentUseCase: Sendable {
     private let repository: any DriverProfileRepository
     private let validator: DriverDocumentUploadValidator
@@ -32,9 +44,16 @@ public struct UploadDriverDocumentUseCase: Sendable {
     }
 
     @discardableResult
-    public func callAsFunction(_ upload: DriverDocumentUpload) async throws -> DriverDocument {
+    public func callAsFunction(
+        _ upload: DriverDocumentUpload,
+        progress: (@Sendable (Double) -> Void)? = nil
+    ) async throws -> DriverDocument {
         _ = try validator.validate(upload)
-        return try await repository.uploadDocument(upload)
+        return try await repository.uploadDocument(upload, progress: progress)
+    }
+
+    public func validate(_ upload: DriverDocumentUpload) throws {
+        _ = try validator.validate(upload)
     }
 }
 

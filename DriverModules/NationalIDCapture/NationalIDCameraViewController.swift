@@ -24,6 +24,7 @@ public final class NationalIDCameraViewController: UIViewController {
     private let onCancel: () -> Void
     private let onPhotoLibrary: () -> Void
     private let onFiles: () -> Void
+    private let requiresDocumentConfirmation: Bool
     private let session = AVCaptureSession()
     private let videoOutput = AVCaptureVideoDataOutput()
     private let photoOutput = AVCapturePhotoOutput()
@@ -64,11 +65,13 @@ public final class NationalIDCameraViewController: UIViewController {
     private var lastStableLiveImageSize: CGSize?
 
     public init(
+        requiresDocumentConfirmation: Bool = true,
         onCapture: @escaping (NationalIDCapturedPhoto) -> Void,
         onCancel: @escaping () -> Void,
         onPhotoLibrary: @escaping () -> Void = {},
         onFiles: @escaping () -> Void = {}
     ) {
+        self.requiresDocumentConfirmation = requiresDocumentConfirmation
         self.onCapture = onCapture
         self.onCancel = onCancel
         self.onPhotoLibrary = onPhotoLibrary
@@ -325,7 +328,8 @@ public final class NationalIDCameraViewController: UIViewController {
         let now = CACurrentMediaTime()
         let elapsed = lastPreviewUpdate.map { now - $0 } ?? 0
         defer { lastPreviewUpdate = now }
-        let alpha = CGFloat(1 - exp(-max(0, elapsed) / 0.12))
+        // Stronger smoothing pass: reduce rapid quad twitch while preserving responsiveness.
+        let alpha = CGFloat(1 - exp(-max(0, elapsed) / 0.22))
         func bounds(_ quad: NationalIDQuad) -> CGRect {
             let points = [quad.topLeft, quad.topRight, quad.bottomRight, quad.bottomLeft]
             let xs = points.map(\.x), ys = points.map(\.y)
@@ -336,7 +340,7 @@ public final class NationalIDCameraViewController: UIViewController {
             let intersection = a.intersection(b)
             let area = intersection.isNull ? 0 : intersection.width * intersection.height
             let union = a.width * a.height + b.width * b.height - area
-            return union > 0 && area / union >= 0.5
+            return union > 0 && area / union >= 0.30
         }
         func blend(_ previous: CGPoint, _ current: CGPoint) -> CGPoint {
             CGPoint(
@@ -609,6 +613,7 @@ extension NationalIDCameraViewController: AVCaptureVideoDataOutputSampleBufferDe
         let result = tracker.process(
             sampleBuffer: sampleBuffer,
             guideRect: guide,
+            requiresDocumentConfirmation: requiresDocumentConfirmation,
             now: CACurrentMediaTime()
         )
         if result.boundary == nil {
