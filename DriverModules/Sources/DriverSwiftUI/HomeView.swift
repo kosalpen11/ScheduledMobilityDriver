@@ -112,7 +112,7 @@ struct HomeView: View {
 
             if let prompt {
                 Button {
-                    onOutput(.openProfile)
+                    handlePromptAction(prompt.action)
                 } label: {
                     Label(prompt.actionTitle, systemImage: "person.text.rectangle")
                         .font(.headline)
@@ -122,6 +122,18 @@ struct HomeView: View {
                 }
                 .buttonStyle(AvailabilityButtonStyle(isAvailable: false))
             }
+        }
+    }
+
+    private func handlePromptAction(_ action: HomeProfileAction) {
+        switch action {
+        case .openProfile:
+            onOutput(.openProfile)
+        case .requestLocationPermission:
+            model.requestLocationAuthorizationIfNeeded()
+        case .openLocationSettings:
+            guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+            UIApplication.shared.open(url)
         }
     }
 

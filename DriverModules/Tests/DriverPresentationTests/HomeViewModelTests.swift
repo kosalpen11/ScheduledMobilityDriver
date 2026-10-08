@@ -87,6 +87,7 @@ final class HomeViewModelTests: XCTestCase {
             createdAt: nil
         )
     }
+
 }
 
 private struct FixedClock: Clock {

@@ -17,17 +17,20 @@ public final class HomeViewModel: ObservableObject {
     private let loadHomeSnapshot: LoadHomeSnapshotUseCase
     private let setAvailability: SetAvailabilityUseCase
     private let loadDriverProfile: LoadDriverProfileUseCase?
+    private let locationReadinessRepository: (any DriverLocationReadinessRepository)?
     private let eligibility = DriverEligibilityPolicy()
     private var refreshTask: Task<Void, Never>?
 
     public init(
         loadHomeSnapshot: LoadHomeSnapshotUseCase,
         setAvailability: SetAvailabilityUseCase,
-        loadDriverProfile: LoadDriverProfileUseCase? = nil
+        loadDriverProfile: LoadDriverProfileUseCase? = nil,
+        locationReadinessRepository: (any DriverLocationReadinessRepository)? = nil
     ) {
         self.loadHomeSnapshot = loadHomeSnapshot
         self.setAvailability = setAvailability
         self.loadDriverProfile = loadDriverProfile
+        self.locationReadinessRepository = locationReadinessRepository
         self.state = .initial
         self.profileGate = .allowed
     }
@@ -84,9 +87,15 @@ public final class HomeViewModel: ObservableObject {
         }
     }
 
+    public func requestLocationAuthorizationIfNeeded() {
+        guard let locationReadinessRepository else { return }
+        _ = locationReadinessRepository.requestAuthorizationIfNeeded()
+        refresh()
+    }
+
     private func loadProfileGate() async -> HomeProfileGate {
         guard let loadDriverProfile else {
-            return .allowed
+            return locationGate()
         }
         do {
             let profile = try await loadDriverProfile()
@@ -94,15 +103,51 @@ public final class HomeViewModel: ObservableObject {
                 return .blocked(
                     title: title(for: profile),
                     detail: detail(for: profile),
-                    actionTitle: "Complete profile"
+                    actionTitle: "Complete profile",
+                    action: .openProfile
                 )
             }
-            return .allowed
+            return locationGate()
         } catch {
             return .blocked(
                 title: "Profile check needed",
                 detail: Self.message(for: error),
-                actionTitle: "Open profile"
+                actionTitle: "Open profile",
+                action: .openProfile
+            )
+        }
+    }
+
+    private func locationGate() -> HomeProfileGate {
+        guard let locationReadinessRepository else {
+            return .allowed
+        }
+        let readiness = locationReadinessRepository.readiness()
+        guard readiness.servicesEnabled else {
+            return .blocked(
+                title: "Turn on location services",
+                detail: "Location Services must be enabled to receive taxi assignments.",
+                actionTitle: "Open settings",
+                action: .openLocationSettings
+            )
+        }
+
+        switch readiness.authorizationStatus {
+        case .authorizedWhenInUse, .authorizedAlways:
+            return .allowed
+        case .notDetermined:
+            return .blocked(
+                title: "Location permission required",
+                detail: "Allow location access so dispatch can match nearby trips.",
+                actionTitle: "Allow location",
+                action: .requestLocationPermission
+            )
+        case .denied, .restricted:
+            return .blocked(
+                title: "Location access blocked",
+                detail: "Enable location access in Settings to go available.",
+                actionTitle: "Open settings",
+                action: .openLocationSettings
             )
         }
     }
@@ -190,7 +235,7 @@ public final class HomeViewModel: ObservableObject {
 
 public enum HomeProfileGate: Equatable {
     case allowed
-    case blocked(title: String, detail: String, actionTitle: String)
+    case blocked(title: String, detail: String, actionTitle: String, action: HomeProfileAction)
 
     public var allowsAvailability: Bool {
         self == .allowed
@@ -200,21 +245,29 @@ public enum HomeProfileGate: Equatable {
         switch self {
         case .allowed:
             return nil
-        case .blocked(let title, let detail, let actionTitle):
-            return HomeProfilePrompt(title: title, detail: detail, actionTitle: actionTitle)
+        case .blocked(let title, let detail, let actionTitle, let action):
+            return HomeProfilePrompt(title: title, detail: detail, actionTitle: actionTitle, action: action)
         }
     }
+}
+
+public enum HomeProfileAction: Equatable {
+    case openProfile
+    case requestLocationPermission
+    case openLocationSettings
 }
 
 public struct HomeProfilePrompt: Equatable {
     public let title: String
     public let detail: String
     public let actionTitle: String
+    public let action: HomeProfileAction
 
-    public init(title: String, detail: String, actionTitle: String) {
+    public init(title: String, detail: String, actionTitle: String, action: HomeProfileAction) {
         self.title = title
         self.detail = detail
         self.actionTitle = actionTitle
+        self.action = action
     }
 }
 

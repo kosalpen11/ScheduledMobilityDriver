@@ -14,22 +14,26 @@ public final class HomeUIKitScreenFactory: HomeScreenFactory {
     private let loadHomeSnapshot: LoadHomeSnapshotUseCase
     private let setAvailability: SetAvailabilityUseCase
     private let loadDriverProfile: LoadDriverProfileUseCase?
+    private let locationReadinessRepository: (any DriverLocationReadinessRepository)?
 
     public init(
         loadHomeSnapshot: LoadHomeSnapshotUseCase,
         setAvailability: SetAvailabilityUseCase,
-        loadDriverProfile: LoadDriverProfileUseCase? = nil
+        loadDriverProfile: LoadDriverProfileUseCase? = nil,
+        locationReadinessRepository: (any DriverLocationReadinessRepository)? = nil
     ) {
         self.loadHomeSnapshot = loadHomeSnapshot
         self.setAvailability = setAvailability
         self.loadDriverProfile = loadDriverProfile
+        self.locationReadinessRepository = locationReadinessRepository
     }
 
     public func makeHome(onOutput: @escaping (HomeOutput) -> Void) -> UIViewController {
         let model = HomeViewModel(
             loadHomeSnapshot: loadHomeSnapshot,
             setAvailability: setAvailability,
-            loadDriverProfile: loadDriverProfile
+            loadDriverProfile: loadDriverProfile,
+            locationReadinessRepository: locationReadinessRepository
         )
         return HomeViewController(model: model, onOutput: onOutput)
     }

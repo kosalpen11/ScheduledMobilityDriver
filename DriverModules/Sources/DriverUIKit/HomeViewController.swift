@@ -377,7 +377,19 @@ final class HomeViewController: UIViewController {
     }
 
     @objc private func openProfileShortcut() {
-        onOutput(.openProfile)
+        guard let action = model.profileGate.prompt?.action else {
+            onOutput(.openProfile)
+            return
+        }
+        switch action {
+        case .openProfile:
+            onOutput(.openProfile)
+        case .requestLocationPermission:
+            model.requestLocationAuthorizationIfNeeded()
+        case .openLocationSettings:
+            guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+            UIApplication.shared.open(url)
+        }
     }
 
     @objc private func showProfile() {

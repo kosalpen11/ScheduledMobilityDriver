@@ -18,11 +18,13 @@ final class CompositionRoot {
     private let configuration: APIConfiguration
     private let authRepository: any AuthRepository
     private let driverProfileRepository: any DriverProfileRepository
+    private let locationReadinessRepository: any DriverLocationReadinessRepository
     private let tripRepository: any TripRepository
     private let availabilityRepository: any AvailabilityRepository
 
     init(configuration: APIConfiguration) {
         self.configuration = configuration
+        self.locationReadinessRepository = CoreLocationReadinessRepository()
         if let baseURL = configuration.baseURL, configuration.environment != .mock {
             let client = HTTPClient(baseURL: baseURL, logger: Self.makeHTTPLogger(for: configuration))
             let authAPI = AuthAPIRepository(
@@ -81,7 +83,8 @@ final class CompositionRoot {
         return HomeSwiftUIScreenFactory(
             loadHomeSnapshot: loadHomeSnapshot,
             setAvailability: setAvailability,
-            loadDriverProfile: LoadDriverProfileUseCase(repository: driverProfileRepository)
+            loadDriverProfile: LoadDriverProfileUseCase(repository: driverProfileRepository),
+            locationReadinessRepository: locationReadinessRepository
         )
     }
 
